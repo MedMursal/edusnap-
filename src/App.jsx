@@ -3,8 +3,9 @@ import { BrowserRouter, Routes, Route } from "react-router-dom"
 import BottomNav from "./components/BottomNav"
 import Home from "./pages/Home"
 import Catalog from "./pages/Catalog"
-import Create from "./pages/Create"
 import Profile from "./pages/Profile"
+import CreateCourse from "./pages/CreateCourse"
+import CoursePage from "./pages/CoursePage"
 
 const themes = {
   blue:   { bg: "#EFF6FF", primary: "#2563EB", secondary: "#DBEAFE", text: "#1E3A5F", accent: "#60A5FA" },
@@ -24,8 +25,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home t={t} theme={theme} setTheme={setTheme} themes={themes} />} />
           <Route path="/catalog" element={<Catalog t={t} />} />
-          <Route path="/create" element={<Create t={t} />} />
+          <Route path="/create" element={<CreateCourse />} />
           <Route path="/profile" element={<Profile t={t} />} />
+          <Route path="/course/:id" element={<CoursePage />} />
         </Routes>
         <BottomNav t={t} />
       </div>

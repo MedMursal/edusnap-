@@ -1,14 +1,26 @@
 import { motion } from "framer-motion"
+import { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
+import { supabase } from "../supabase"
 
 const themeNames = { blue: "🔵 Синяя", green: "🟢 Зелёная", purple: "🟣 Фиолетовая", orange: "🟠 Оранжевая", dark: "⚫ Тёмная" }
 
-const courses = [
-  { id: 1, title: "Python за 30 минут", lessons: 6, xp: 120, emoji: "🐍" },
-  { id: 2, title: "Основы маркетинга", lessons: 8, xp: 160, emoji: "📈" },
-  { id: 3, title: "ChatGPT для работы", lessons: 5, xp: 100, emoji: "🤖" },
-]
-
 export default function Home({ t, theme, setTheme, themes }) {
+  const [courses, setCourses] = useState([])
+  const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    supabase
+      .from("courses")
+      .select("*, lessons(count)")
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (!error) setCourses(data || [])
+        setLoading(false)
+      })
+  }, [])
+
   return (
     <div style={{ padding: "24px 16px 100px" }}>
 
@@ -53,11 +65,26 @@ export default function Home({ t, theme, setTheme, themes }) {
       </div>
 
       <p style={{ fontWeight: 700, marginBottom: 12 }}>🔥 Популярные курсы</p>
+
+      {loading && (
+        <div style={{ textAlign:"center", color: t.accent, padding: 20 }}>Загрузка...</div>
+      )}
+
+      {!loading && courses.length === 0 && (
+        <div style={{ textAlign:"center", padding: 32, background:"white",
+          borderRadius:16, color:"#94A3B8" }}>
+          <div style={{ fontSize:40, marginBottom:8 }}>📚</div>
+          <p style={{ fontWeight:600 }}>Курсов пока нет</p>
+          <p style={{ fontSize:13 }}>Создай первый курс!</p>
+        </div>
+      )}
+
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {courses.map((course, i) => (
           <motion.div key={course.id}
             initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}
             whileTap={{ scale: 0.97 }}
+            onClick={() => navigate(`/course/${course.id}`)}
             style={{
               background: "white", borderRadius: 16, padding: 16,
               boxShadow: `0 4px 12px ${t.secondary}`, cursor: "pointer",
@@ -67,7 +94,9 @@ export default function Home({ t, theme, setTheme, themes }) {
               <span style={{ fontSize: 32 }}>{course.emoji}</span>
               <div>
                 <p style={{ fontWeight: 700 }}>{course.title}</p>
-                <p style={{ fontSize: 12, color: "#94A3B8" }}>{course.lessons} уроков · {course.xp} XP</p>
+                <p style={{ fontSize: 12, color: "#94A3B8" }}>
+                  {course.lessons?.[0]?.count || 0} уроков · {course.level}
+                </p>
               </div>
             </div>
             <div style={{
