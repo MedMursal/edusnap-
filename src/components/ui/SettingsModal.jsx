@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Check } from "lucide-react"
+import { X, Check, Sun, Moon } from "lucide-react"
 
-const themeNames = {
+const THEME_INFO = {
   coral:    { label: "Коралл",  emoji: "🪸", color: "#FF6B4A" },
   sage:     { label: "Шалфей", emoji: "🌿", color: "#4DAA7A" },
   ocean:    { label: "Океан",   emoji: "🌊", color: "#3A9BD5" },
@@ -9,26 +9,24 @@ const themeNames = {
   dusk:     { label: "Закат",   emoji: "🌅", color: "#E8845A" },
 }
 
-export default function SettingsModal({ t, theme, setTheme, themes, onClose }) {
+export default function SettingsModal({ t, theme, setTheme, mode, setMode, onClose }) {
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         onClick={onClose}
         style={{
           position: "fixed", inset: 0,
-          background: "rgba(0,0,0,0.6)",
+          background: "rgba(0,0,0,0.55)",
           backdropFilter: "blur(8px)",
           zIndex: 200,
           display: "flex", alignItems: "flex-end",
         }}
       >
         <motion.div
-          initial={{ y: 100, opacity: 0 }}
+          initial={{ y: 120, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 100, opacity: 0 }}
+          exit={{ y: 120, opacity: 0 }}
           transition={{ type: "spring", damping: 28, stiffness: 300 }}
           onClick={e => e.stopPropagation()}
           style={{
@@ -41,48 +39,66 @@ export default function SettingsModal({ t, theme, setTheme, themes, onClose }) {
           }}
         >
           {/* Handle */}
-          <div style={{
-            width: 40, height: 4, borderRadius: 99,
-            background: t.border, margin: "12px auto 24px",
-          }} />
+          <div style={{ width: 40, height: 4, borderRadius: 99, background: t.border, margin: "12px auto 24px" }} />
 
           {/* Header */}
-          <div style={{
-            display: "flex", justifyContent: "space-between",
-            alignItems: "center", marginBottom: 28,
-          }}>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: t.text }}>
-              ⚙️ Настройки
-            </h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: t.text }}>⚙️ Настройки</h2>
             <button onClick={onClose} style={{
-              background: t.surfaceUp, border: "none",
-              borderRadius: 999, width: 36, height: 36,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", color: t.textMuted,
+              background: t.surfaceUp, border: "none", borderRadius: 999,
+              width: 36, height: 36, display: "flex", alignItems: "center",
+              justifyContent: "center", cursor: "pointer", color: t.textMuted,
             }}>
               <X size={18} />
             </button>
           </div>
 
-          {/* Theme label */}
-          <p style={{
-            fontSize: 12, fontWeight: 700, color: t.textMuted,
-            letterSpacing: 1, marginBottom: 14, textTransform: "uppercase",
-          }}>Цветовая палитра</p>
+          {/* Light / Dark toggle */}
+          <p style={{ fontSize: 12, fontWeight: 700, color: t.textMuted, letterSpacing: 1, marginBottom: 12, textTransform: "uppercase" }}>
+            Режим
+          </p>
+          <div style={{
+            display: "flex", gap: 8, marginBottom: 28,
+            background: t.surfaceUp, borderRadius: 18, padding: 4,
+          }}>
+            {[
+              { value: "dark",  icon: Moon, label: "Тёмная" },
+              { value: "light", icon: Sun,  label: "Светлая" },
+            ].map(({ value, icon: Icon, label }) => {
+              const active = mode === value
+              return (
+                <button key={value} onClick={() => setMode(value)}
+                  style={{
+                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                    gap: 8, padding: "10px 0", borderRadius: 14,
+                    background: active ? t.primary : "transparent",
+                    border: "none", cursor: "pointer",
+                    color: active ? "white" : t.textMuted,
+                    fontWeight: 700, fontSize: 14,
+                    transition: "all 0.2s",
+                    boxShadow: active ? `0 2px 10px ${t.primaryGlow}` : "none",
+                  }}>
+                  <Icon size={16} />
+                  {label}
+                </button>
+              )
+            })}
+          </div>
 
-          {/* Theme grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 8 }}>
-            {Object.entries(themes).map(([key, val]) => {
-              const info = themeNames[key]
+          {/* Theme palette */}
+          <p style={{ fontSize: 12, fontWeight: 700, color: t.textMuted, letterSpacing: 1, marginBottom: 14, textTransform: "uppercase" }}>
+            Цветовая палитра
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {Object.entries(THEME_INFO).map(([key, info]) => {
               const active = theme === key
               return (
                 <motion.button
-                  key={key}
-                  whileTap={{ scale: 0.96 }}
+                  key={key} whileTap={{ scale: 0.96 }}
                   onClick={() => setTheme(key)}
                   style={{
-                    background: active ? val.secondary : t.surfaceUp,
-                    border: `2px solid ${active ? val.primary : t.border}`,
+                    background: active ? `${info.color}22` : t.surfaceUp,
+                    border: `2px solid ${active ? info.color : t.border}`,
                     borderRadius: 18, padding: "14px 16px",
                     cursor: "pointer", textAlign: "left",
                     display: "flex", alignItems: "center",
@@ -98,15 +114,14 @@ export default function SettingsModal({ t, theme, setTheme, themes, onClose }) {
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 16,
                     }}>{info.emoji}</div>
-                    <span style={{
-                      fontWeight: 700, fontSize: 14,
-                      color: active ? val.primary : t.text,
-                    }}>{info.label}</span>
+                    <span style={{ fontWeight: 700, fontSize: 14, color: active ? info.color : t.text }}>
+                      {info.label}
+                    </span>
                   </div>
                   {active && (
                     <div style={{
                       width: 20, height: 20, borderRadius: 999,
-                      background: val.primary,
+                      background: info.color,
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
                       <Check size={12} color="white" strokeWidth={3} />
