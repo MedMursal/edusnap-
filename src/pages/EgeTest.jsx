@@ -203,22 +203,54 @@ export default function EgeTest({ t }) {
     return Array.from({ length: d.length > 0 ? Math.max(...d) : 3 }, (_, i) => i + 1);
   }
 
-  function norm(a) { return (a || "").trim().toLowerCase().replace(/\s+/g, "").replace(/,/g, "."); }
+  // Нормализация: убираем пробелы, запятые, точки, приводим к нижнему регистру
+  function norm(a) {
+    return (a || "").trim().toLowerCase().replace(/[\s,.\-]/g, "");
+  }
 
   function checkAnswer(override) {
-    const task = tasks[current]; const type = getTaskType(task); let given = "";
-    if (type === "multiselect") given = [...selectedMulti].sort().join("");
-    else if (type === "match") { const rows = getMatchRows(task) || []; given = rows.map((_, i) => matchAnswers[i] || "0").join(""); }
-    else given = norm(override || userAnswer);
-    const variants = task.answer.split(/,\s*|\/\s*|\|\|/).map(v => norm(v)).filter(Boolean);
-    const correct = variants.some(v => v === norm(given)) || norm(given) === norm(task.answer.replace(/\s/g, ""));
-    setIsCorrect(correct); setAnswered(true); setUserAnswer(given);
+    const task = tasks[current];
+    const type = getTaskType(task);
+    let given = "";
+
+    if (type === "multiselect") {
+      given = [...selectedMulti].sort().join("");
+    } else if (type === "match") {
+      const rows = getMatchRows(task) || [];
+      given = rows.map((_, i) => matchAnswers[i] || "0").join("");
+    } else {
+      given = norm(override || userAnswer);
+    }
+
+    const rawAnswer = task.answer || "";
+
+    // Все варианты правильного ответа (через / или ||)
+    const variants = rawAnswer
+      .split(/\/|\|\|/)
+      .map(v => norm(v))
+      .filter(Boolean);
+
+    // Вариант без запятых (например "3,3" -> "33")
+    const answerNoComma = norm(rawAnswer);
+
+    const correct =
+      variants.some(v => v === norm(given)) ||
+      norm(given) === answerNoComma ||
+      // Если ответ "3, 3" или "3,3" — принимаем "33"
+      norm(rawAnswer.replace(/,/g, "")) === norm(given) ||
+      // Если варианты через запятую — объединяем их
+      norm(variants.join("")) === norm(given);
+
+    setIsCorrect(correct);
+    setAnswered(true);
+    setUserAnswer(given);
     setResults(prev => [...prev, { task, userAnswer: given, correct }]);
   }
 
   function nextTask() {
     if (current + 1 >= tasks.length) { setFinished(true); return; }
-    setCurrent(c => c + 1); setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
+    setCurrent(c => c + 1);
+    setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
     setAnswered(false); setIsCorrect(null); setShowSolution(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
