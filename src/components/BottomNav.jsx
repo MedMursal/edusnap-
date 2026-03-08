@@ -16,9 +16,12 @@ export default function BottomNav({ t }) {
   return (
     <div style={{
       position: "fixed", bottom: 0, left: 0, right: 0,
-      background: "white", borderTop: `2px solid ${t.secondary}`,
-      display: "flex", justifyContent: "space-around",
-      padding: "10px 0 20px", zIndex: 100
+      background: t.surface,
+      borderTop: `1px solid ${t.border}`,
+      display: "flex", justifyContent: "space-around", alignItems: "center",
+      padding: "10px 8px 28px",
+      zIndex: 100,
+      backdropFilter: "blur(20px)",
     }}>
       {tabs.map(({ path, icon: Icon, label }) => {
         const active = location.pathname === path
@@ -27,12 +30,26 @@ export default function BottomNav({ t }) {
             style={{
               display: "flex", flexDirection: "column", alignItems: "center",
               gap: 4, background: "none", border: "none", cursor: "pointer",
-              color: active ? t.primary : "#94A3B8",
-              transform: active ? "scale(1.15)" : "scale(1)",
-              transition: "all 0.2s"
+              color: active ? t.primary : t.textMuted,
+              transition: "all 0.2s",
+              padding: "6px 12px",
+              borderRadius: 999,
+              position: "relative",
             }}>
-            <Icon size={24} />
-            <span style={{ fontSize: 11, fontWeight: active ? 700 : 400 }}>{label}</span>
+            {active && (
+              <div style={{
+                position: "absolute",
+                top: 0, left: 0, right: 0, bottom: 0,
+                background: t.secondary,
+                borderRadius: 999,
+              }} />
+            )}
+            <Icon size={22} strokeWidth={active ? 2.5 : 1.8} style={{ position: "relative", zIndex: 1 }} />
+            <span style={{
+              fontSize: 10, fontWeight: active ? 700 : 500,
+              position: "relative", zIndex: 1,
+              letterSpacing: 0.2,
+            }}>{label}</span>
           </button>
         )
       })}
