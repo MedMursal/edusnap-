@@ -3,10 +3,12 @@ import { Settings, Zap, Target, Calendar } from "lucide-react"
 import { useUser } from "../App"
 import SettingsModal from "../components/ui/SettingsModal"
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 
 export default function Profile({ t, theme, setTheme, mode, setMode }) {
   const { tgUser, dbUser, userLoading, tasksToday, freeLimit, isInTelegram } = useUser()
   const [showSettings, setShowSettings] = useState(false)
+  const navigate = useNavigate()
 
   const displayName = tgUser
     ? [tgUser.firstName, tgUser.lastName].filter(Boolean).join(" ")
@@ -101,7 +103,7 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
       {/* Статистика */}
       <motion.div
         initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}
       >
         {[
           { icon: Zap,      label: "XP",     value: xp },
@@ -118,6 +120,32 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
           </div>
         ))}
       </motion.div>
+
+      {/* Работа над ошибками */}
+      <motion.button
+        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+        whileTap={{ scale: 0.97 }}
+        onClick={() => navigate("/errors")}
+        style={{
+          width: "100%", padding: "16px 20px", borderRadius: 20,
+          background: t.surface, border: `1px solid ${t.border}`,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          cursor: "pointer", color: t.text,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 12,
+            background: `${t.error}22`,
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
+          }}>📝</div>
+          <div style={{ textAlign: "left" }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>Работа над ошибками</div>
+            <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>Персонализированный тест</div>
+          </div>
+        </div>
+        <span style={{ color: t.textMuted, fontSize: 18 }}>→</span>
+      </motion.button>
 
       {showSettings && (
         <SettingsModal t={t} theme={theme} setTheme={setTheme} mode={mode} setMode={setMode} onClose={() => setShowSettings(false)} />

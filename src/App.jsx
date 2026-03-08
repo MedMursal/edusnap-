@@ -8,6 +8,7 @@ import EgeTest from "./pages/EgeTest"
 import AdminPanel from "./pages/AdminPanel"
 import { getTelegramUser, getTelegramWebApp, isInTelegram } from "./telegram"
 import { supabase } from "./supabase"
+import WorkOnErrors from "./pages/WorkOnErrors"
 
 const BASE_THEMES = {
   coral:    { name: "Коралл",  emoji: "🪸", primary: "#FF6B4A", primaryBright: "#FF8166", primaryGlow: "rgba(255,107,74,0.3)", secondary: "rgba(255,107,74,0.12)", success: "#52C97A", error: "#FF5C7A", accent: "#FFB347" },
@@ -105,6 +106,8 @@ export default function App() {
             <Route path="/ege" element={<EgeTasks t={t} />} />
             <Route path="/ege/test" element={<EgeTest t={t} />} />
             <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/errors" element={<WorkOnErrors t={t} />} />
+
           </Routes>
           <BottomNav t={t} />
         </div>
