@@ -5,31 +5,30 @@ import { useUser } from "../App";
 
 export default function WorkOnErrors({ t }) {
   const navigate = useNavigate();
-  const { tgUser } = useUser();
+  const { tgUser, dbUser } = useUser();
   const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [groupBy, setGroupBy] = useState("topic"); // "topic" | "line"
 
-  useEffect(() => { if (tgUser?.id) fetchErrors(); }, [tgUser]);
+  useEffect(() => { if (tgUser?.id || dbUser?.id) fetchErrors(); }, [tgUser, dbUser]);
 
   async function fetchErrors() {
+    const userId = dbUser?.id || tgUser?.id;
+    if (!userId) return;
     setLoading(true);
-    // Берём все ответы пользователя
     const { data } = await supabase
       .from("user_answers")
       .select("*")
-      .eq("user_id", tgUser.id)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
-    // Для каждого task_id берём только последний ответ
     const latestByTask = {};
     (data || []).forEach(row => {
       if (!latestByTask[row.task_id]) latestByTask[row.task_id] = row;
     });
 
-    // Оставляем только те где последний ответ неправильный
-    const errors = Object.values(latestByTask).filter(r => !r.is_correct);
-    setErrors(errors);
+    const errorsData = Object.values(latestByTask).filter(r => !r.is_correct);
+    setErrors(errorsData);
     setLoading(false);
   }
 
@@ -50,7 +49,7 @@ export default function WorkOnErrors({ t }) {
     navigate(`/ege/test?error_ids=${taskIds.join(",")}`);
   }
 
-  if (!tgUser) return (
+  if (!tgUser && !dbUser) return (
     <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <span style={{ color: t.textMuted, fontSize: 15 }}>Войди через Telegram</span>
     </div>
