@@ -202,8 +202,10 @@ export default function EgeTest({ t }) {
     const a = (task.answer || "").replace(/\s/g, "");
     const opts = getOptions(task);
     const plain = task.question.replace(/<[^>]+>/g, " ");
+    const isTableFill = /цифры в ответе могут повторяться/i.test(plain) || /запишите.*таблиц/i.test(plain) || /запишите выбранные цифры/i.test(plain);
     if (/^\d{2,}$/.test(a) && task.question.includes("<table") && /[АБВ]/.test(plain)) return "match";
     if (/^\d{2,6}$/.test(a) && /последовательност/i.test(plain)) return "sequence";
+    if (/^\d{2,4}$/.test(a) && isTableFill) return "sequence";
     if (/^\d{2,4}$/.test(a) && opts) {
       const digits = a.split("");
       const hasRepeats = digits.length !== new Set(digits).size;
