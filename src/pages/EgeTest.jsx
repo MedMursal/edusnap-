@@ -262,8 +262,16 @@ export default function EgeTest({ t }) {
 
     const rawAnswer = task.answer || "";
     const variants = rawAnswer.split(/\/|\|\|/).map(v => norm(v)).filter(Boolean);
+
+    // Если ответ содержит запятую — принимаем любой из вариантов
+    const allVariants = [];
+    variants.forEach(v => {
+      allVariants.push(v);
+      if (v.includes(",")) v.split(",").forEach(p => allVariants.push(norm(p)));
+    });
+
     const correct =
-      variants.some(v => v === norm(given)) ||
+      allVariants.some(v => v === norm(given)) ||
       norm(given) === norm(rawAnswer) ||
       norm(rawAnswer.replace(/,/g, "")) === norm(given) ||
       norm(rawAnswer.replace(/\s/g, "")) === norm(given);

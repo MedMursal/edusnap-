@@ -5,6 +5,9 @@ export default function BottomNav({ t }) {
   const navigate = useNavigate()
   const location = useLocation()
 
+  // Скрываем на странице теста чтобы клавиатура не перекрывала
+  if (location.pathname === "/ege/test") return null
+
   const tabs = [
     { path: "/",        icon: Home,          label: "Главная" },
     { path: "/ege",     icon: ClipboardList, label: "ЕГЭ"     },
