@@ -1,15 +1,16 @@
 import { useNavigate, useLocation } from "react-router-dom"
-import { Home, BookOpen, PlusCircle, User } from "lucide-react"
+import { Home, BookOpen, PlusCircle, User, ClipboardList } from "lucide-react"
 
 export default function BottomNav({ t }) {
   const navigate = useNavigate()
   const location = useLocation()
 
   const tabs = [
-    { path: "/",        icon: Home,       label: "Главная"  },
-    { path: "/catalog", icon: BookOpen,   label: "Курсы"    },
-    { path: "/create",  icon: PlusCircle, label: "Создать"  },
-    { path: "/profile", icon: User,       label: "Профиль"  },
+    { path: "/",        icon: Home,          label: "Главная"  },
+    { path: "/catalog", icon: BookOpen,      label: "Курсы"    },
+    { path: "/create",  icon: PlusCircle,    label: "Создать"  },
+    { path: "/ege",     icon: ClipboardList, label: "ЕГЭ"      },
+    { path: "/profile", icon: User,          label: "Профиль"  },
   ]
 
   return (
