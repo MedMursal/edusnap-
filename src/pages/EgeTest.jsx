@@ -262,14 +262,15 @@ export default function EgeTest({ t }) {
 
     const rawAnswer = task.answer || "";
 
-    // Собираем все варианты: через / или || или запятую
+    // Разбиваем по / || и по ", " (запятая с пробелом = отдельные варианты)
     const allVariants = new Set();
-    rawAnswer.split(/\/|\|\|/).forEach(part => {
-      allVariants.add(norm(part));
-      part.split(",").forEach(p => allVariants.add(norm(p)));
+    rawAnswer.split(/\/|\|\||,\s*/).forEach(part => {
+      const v = part.trim().toLowerCase().replace(/[\s\-]/g, "");
+      if (v) allVariants.add(v);
     });
 
-    const correct = [...allVariants].some(v => v !== "" && v === norm(given));
+    const normGiven = given.trim().toLowerCase().replace(/[\s\-]/g, "");
+    const correct = [...allVariants].some(v => v === normGiven);
 
     setIsCorrect(correct);
     setAnswered(true);
