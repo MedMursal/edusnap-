@@ -159,6 +159,8 @@ export default function EgeTest() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const subjectParam = searchParams.get("subject");
+  const topicParam = searchParams.get("topic");
+  const subtopicParam = searchParams.get("subtopic");
   const [tasks, setTasks] = useState([]);
   const [current, setCurrent] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
@@ -177,6 +179,8 @@ export default function EgeTest() {
     setLoading(true);
     let q = supabase.from("ege_tasks").select("*");
     if (subjectParam) q = q.eq("subject", subjectParam);
+    if (topicParam) q = q.eq("topic", topicParam);
+    if (subtopicParam) q = q.eq("subtopic", subtopicParam);
     const { data } = await q;
     setTasks((data || []).sort(() => Math.random() - 0.5).slice(0, 10));
     setLoading(false);
@@ -201,7 +205,6 @@ export default function EgeTest() {
 
   function getMatchRows(task) {
     const text = task.question.replace(/<[^>]+>/g, " ");
-    // А-Е кириллица: А=1040, Б=1041, В=1042, Г=1043, Д=1044, Е=1045
     const free = text.match(/[А-Е]\)\s*[^\n]{3,}/g) || [];
     if (free.length >= 2) {
       return free.map((m, i) => ({
@@ -209,13 +212,11 @@ export default function EgeTest() {
         text: m.replace(/^[А-Е]\)\s*/, "").trim().slice(0, 120)
       }));
     }
-    // Парсим строки таблицы: берём первую ячейку каждой <tr>, пропускаем заголовок
     const rows = [];
     const trRe = /<tr[^>]*>(.*?)<\/tr>/gis;
     let trM;
     while ((trM = trRe.exec(task.question)) !== null) {
       const rowHtml = trM[1];
-      // Пропускаем строки с <th>
       if (/<th/i.test(rowHtml)) continue;
       const tdRe2 = /<td[^>]*>(.*?)<\/td>/gis;
       const cells = [];
@@ -223,7 +224,6 @@ export default function EgeTest() {
       while ((tdM2 = tdRe2.exec(rowHtml)) !== null) {
         cells.push(tdM2[1].replace(/<[^>]+>/g, "").trim());
       }
-      // Первая ячейка — это А)/Б)/В) текст или просто текст
       if (cells[0] && cells[0].length > 1) rows.push(cells[0]);
     }
     if (rows.length >= 2) {
@@ -344,6 +344,7 @@ export default function EgeTest() {
           <div className="et-tags">
             {task.subject && <span className="et-tag et-tag-subject">{task.subject}</span>}
             {task.topic && <span className="et-tag et-tag-topic">{task.topic}</span>}
+            {task.subtopic && <span className="et-tag et-tag-topic">{task.subtopic}</span>}
             {task.difficulty && <span className="et-tag et-tag-diff">★ {task.difficulty}</span>}
           </div>
           <div className="ege-question et-question" dangerouslySetInnerHTML={{ __html: task.question }} />
