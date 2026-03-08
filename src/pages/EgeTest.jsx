@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
+import { useUser } from "../App";
 
 function EgeStyles({ t }) {
   return (
@@ -136,10 +137,12 @@ function MatchWidget({ rows, cols, answers, onChange, t }) {
 export default function EgeTest({ t }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { tgUser, dbUser } = useUser();
   const subjectParam = searchParams.get("subject");
   const topicParam = searchParams.get("topic");
   const subtopicParam = searchParams.get("subtopic");
   const lineParam = searchParams.get("line");
+  const errorIdsParam = searchParams.get("error_ids"); // для теста по ошибкам
   const [tasks, setTasks] = useState([]);
   const [current, setCurrent] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
@@ -157,13 +160,36 @@ export default function EgeTest({ t }) {
   async function fetchTasks() {
     setLoading(true);
     let q = supabase.from("ege_tasks").select("*");
-    if (subjectParam) q = q.eq("subject", subjectParam);
-    if (topicParam) q = q.eq("topic", topicParam);
-    if (subtopicParam) q = q.eq("subtopic", subtopicParam);
-    if (lineParam) q = q.eq("line_number", parseInt(lineParam));
+
+    if (errorIdsParam) {
+      const ids = errorIdsParam.split(",");
+      q = q.in("source_id", ids);
+    } else {
+      if (subjectParam) q = q.eq("subject", subjectParam);
+      if (topicParam) q = q.eq("topic", topicParam);
+      if (subtopicParam) q = q.eq("subtopic", subtopicParam);
+      if (lineParam) q = q.eq("line_number", parseInt(lineParam));
+    }
+
     const { data } = await q;
     setTasks((data || []).sort(() => Math.random() - 0.5).slice(0, 10));
     setLoading(false);
+  }
+
+  async function saveAnswer(task, given, correct) {
+    const userId = tgUser?.id || dbUser?.id;
+    if (!userId) return;
+    await supabase.from("user_answers").insert({
+      user_id: userId,
+      task_id: task.source_id || String(task.id),
+      is_correct: correct,
+      user_answer: String(given),
+      correct_answer: task.answer,
+      topic: task.topic,
+      subtopic: task.subtopic,
+      line_number: task.line_number,
+      subject: task.subject,
+    });
   }
 
   function getOptions(task) {
@@ -178,7 +204,12 @@ export default function EgeTest({ t }) {
     const plain = task.question.replace(/<[^>]+>/g, " ");
     if (/^\d{2,}$/.test(a) && task.question.includes("<table") && /[АБВ]/.test(plain)) return "match";
     if (/^\d{2,6}$/.test(a) && /последовательност/i.test(plain)) return "sequence";
-    if (/^\d{2,4}$/.test(a) && opts) return "multiselect";
+    if (/^\d{2,4}$/.test(a) && opts) {
+      const digits = a.split("");
+      const hasRepeats = digits.length !== new Set(digits).size;
+      if (hasRepeats) return "sequence";
+      return "multiselect";
+    }
     if (opts) return "single";
     return "text";
   }
@@ -219,10 +250,8 @@ export default function EgeTest({ t }) {
     } else if (type === "match") {
       const rows = getMatchRows(task);
       if (rows) {
-        // Виджет с кнопками — берём matchAnswers
         given = rows.map((_, i) => matchAnswers[i] || "0").join("");
       } else {
-        // Fallback — текстовое поле (таблица есть но строки не распарсились)
         given = norm(userAnswer);
       }
     } else {
@@ -230,20 +259,18 @@ export default function EgeTest({ t }) {
     }
 
     const rawAnswer = task.answer || "";
-
-    // Все варианты через / или ||
     const variants = rawAnswer.split(/\/|\|\|/).map(v => norm(v)).filter(Boolean);
-
     const correct =
-      variants.some(v => v === norm(given)) ||          // точное совпадение с вариантом
-      norm(given) === norm(rawAnswer) ||                  // совпадение с полным ответом
-      norm(rawAnswer.replace(/,/g, "")) === norm(given) || // "3,3" → "33"
-      norm(rawAnswer.replace(/\s/g, "")) === norm(given);  // "3 3" → "33"
+      variants.some(v => v === norm(given)) ||
+      norm(given) === norm(rawAnswer) ||
+      norm(rawAnswer.replace(/,/g, "")) === norm(given) ||
+      norm(rawAnswer.replace(/\s/g, "")) === norm(given);
 
     setIsCorrect(correct);
     setAnswered(true);
     setUserAnswer(given);
     setResults(prev => [...prev, { task, userAnswer: given, correct }]);
+    saveAnswer(task, given, correct);
   }
 
   function nextTask() {
