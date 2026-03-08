@@ -139,6 +139,7 @@ export default function EgeTest({ t }) {
   const subjectParam = searchParams.get("subject");
   const topicParam = searchParams.get("topic");
   const subtopicParam = searchParams.get("subtopic");
+  const lineParam = searchParams.get("line");
   const [tasks, setTasks] = useState([]);
   const [current, setCurrent] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
@@ -159,6 +160,7 @@ export default function EgeTest({ t }) {
     if (subjectParam) q = q.eq("subject", subjectParam);
     if (topicParam) q = q.eq("topic", topicParam);
     if (subtopicParam) q = q.eq("subtopic", subtopicParam);
+    if (lineParam) q = q.eq("line_number", parseInt(lineParam));
     const { data } = await q;
     setTasks((data || []).sort(() => Math.random() - 0.5).slice(0, 10));
     setLoading(false);
