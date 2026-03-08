@@ -8,6 +8,10 @@ import CreateCourse from "./pages/CreateCourse"
 import CoursePage from "./pages/CoursePage"
 import EgeTasks from "./pages/EgeTasks"
 import EgeTest from "./pages/EgeTest"
+import AdminPanel from "./pages/AdminPanel"
+
+
+
 
 export const themes = {
   coral: {
@@ -117,6 +121,9 @@ export default function App() {
           <Route path="/course/:id" element={<CoursePage t={t} />} />
           <Route path="/ege" element={<EgeTasks t={t} />} />
           <Route path="/ege/test" element={<EgeTest t={t} />} />
+          <Route path="/admin" element={<AdminPanel />} />
+
+
         </Routes>
         <BottomNav t={t} />
       </div>

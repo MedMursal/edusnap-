@@ -178,7 +178,7 @@ export default function EgeTest() {
     let q = supabase.from("ege_tasks").select("*");
     if (subjectParam) q = q.eq("subject", subjectParam);
     const { data } = await q;
-    setTasks((data || []).sort(() => Math.random() - 0.5).slice(0, 20));
+    setTasks((data || []).sort(() => Math.random() - 0.5).slice(0, 10));
     setLoading(false);
   }
 
