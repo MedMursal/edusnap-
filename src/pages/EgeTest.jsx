@@ -201,11 +201,37 @@ export default function EgeTest() {
 
   function getMatchRows(task) {
     const text = task.question.replace(/<[^>]+>/g, " ");
-    const free = text.match(/[АБВ]\)\s*[^\n]{5,}/g) || [];
-    if (free.length >= 2) return free.map((m, i) => ({ label: String.fromCharCode(1040 + i), text: m.replace(/^[АБВ]\)\s*/, "").trim().slice(0, 100) }));
-    const tdM = []; const re = /<tr[^>]*>.*?<td[^>]*>(.*?)<\/td>/gis; let m;
-    while ((m = re.exec(task.question)) !== null) { const c = m[1].replace(/<[^>]+>/g, "").trim(); if (c && c.length > 2 && !/^\d+$/.test(c)) tdM.push(c); }
-    if (tdM.length >= 2) return tdM.slice(0, 6).map((t, i) => ({ label: String.fromCharCode(1040 + i), text: t.slice(0, 100) }));
+    // А-Е кириллица: А=1040, Б=1041, В=1042, Г=1043, Д=1044, Е=1045
+    const free = text.match(/[А-Е]\)\s*[^\n]{3,}/g) || [];
+    if (free.length >= 2) {
+      return free.map((m, i) => ({
+        label: m[0],
+        text: m.replace(/^[А-Е]\)\s*/, "").trim().slice(0, 120)
+      }));
+    }
+    // Парсим строки таблицы: берём первую ячейку каждой <tr>, пропускаем заголовок
+    const rows = [];
+    const trRe = /<tr[^>]*>(.*?)<\/tr>/gis;
+    let trM;
+    while ((trM = trRe.exec(task.question)) !== null) {
+      const rowHtml = trM[1];
+      // Пропускаем строки с <th>
+      if (/<th/i.test(rowHtml)) continue;
+      const tdRe2 = /<td[^>]*>(.*?)<\/td>/gis;
+      const cells = [];
+      let tdM2;
+      while ((tdM2 = tdRe2.exec(rowHtml)) !== null) {
+        cells.push(tdM2[1].replace(/<[^>]+>/g, "").trim());
+      }
+      // Первая ячейка — это А)/Б)/В) текст или просто текст
+      if (cells[0] && cells[0].length > 1) rows.push(cells[0]);
+    }
+    if (rows.length >= 2) {
+      return rows.map((t, i) => ({
+        label: String.fromCharCode(1040 + i),
+        text: t.replace(/^[А-Е]\)\s*/, "").trim().slice(0, 120)
+      }));
+    }
     return null;
   }
 
