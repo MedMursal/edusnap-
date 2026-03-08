@@ -203,7 +203,6 @@ export default function EgeTest({ t }) {
     return Array.from({ length: d.length > 0 ? Math.max(...d) : 3 }, (_, i) => i + 1);
   }
 
-  // Нормализация: убираем пробелы, запятые, точки, приводим к нижнему регистру
   function norm(a) {
     return (a || "").trim().toLowerCase().replace(/[\s,.\-]/g, "");
   }
@@ -216,30 +215,28 @@ export default function EgeTest({ t }) {
     if (type === "multiselect") {
       given = [...selectedMulti].sort().join("");
     } else if (type === "match") {
-      const rows = getMatchRows(task) || [];
-      given = rows.map((_, i) => matchAnswers[i] || "0").join("");
+      const rows = getMatchRows(task);
+      if (rows) {
+        // Виджет с кнопками — берём matchAnswers
+        given = rows.map((_, i) => matchAnswers[i] || "0").join("");
+      } else {
+        // Fallback — текстовое поле (таблица есть но строки не распарсились)
+        given = norm(userAnswer);
+      }
     } else {
       given = norm(override || userAnswer);
     }
 
     const rawAnswer = task.answer || "";
 
-    // Все варианты правильного ответа (через / или ||)
-    const variants = rawAnswer
-      .split(/\/|\|\|/)
-      .map(v => norm(v))
-      .filter(Boolean);
-
-    // Вариант без запятых (например "3,3" -> "33")
-    const answerNoComma = norm(rawAnswer);
+    // Все варианты через / или ||
+    const variants = rawAnswer.split(/\/|\|\|/).map(v => norm(v)).filter(Boolean);
 
     const correct =
-      variants.some(v => v === norm(given)) ||
-      norm(given) === answerNoComma ||
-      // Если ответ "3, 3" или "3,3" — принимаем "33"
-      norm(rawAnswer.replace(/,/g, "")) === norm(given) ||
-      // Если варианты через запятую — объединяем их
-      norm(variants.join("")) === norm(given);
+      variants.some(v => v === norm(given)) ||          // точное совпадение с вариантом
+      norm(given) === norm(rawAnswer) ||                  // совпадение с полным ответом
+      norm(rawAnswer.replace(/,/g, "")) === norm(given) || // "3,3" → "33"
+      norm(rawAnswer.replace(/\s/g, "")) === norm(given);  // "3 3" → "33"
 
     setIsCorrect(correct);
     setAnswered(true);
@@ -383,7 +380,9 @@ export default function EgeTest({ t }) {
               return rows
                 ? <MatchWidget rows={rows} cols={cols} answers={matchAnswers} onChange={setMatchAnswers} t={t} />
                 : <input type="text" value={userAnswer} className="et-input et-input-seq"
-                    onChange={e => setUserAnswer(e.target.value.replace(/[^0-9]/g, ""))} placeholder="Введи цифры..." />;
+                    onChange={e => setUserAnswer(e.target.value.replace(/[^0-9]/g, ""))}
+                    onKeyDown={e => e.key === "Enter" && canSubmit && checkAnswer()}
+                    placeholder="Введи цифры..." />;
             })()}
 
             {type === "text" && (
