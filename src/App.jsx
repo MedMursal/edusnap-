@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect, createContext, useContext } from "react"
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import BottomNav from "./components/BottomNav"
 import Home from "./pages/Home"
@@ -6,6 +6,8 @@ import Profile from "./pages/Profile"
 import EgeTasks from "./pages/EgeTasks"
 import EgeTest from "./pages/EgeTest"
 import AdminPanel from "./pages/AdminPanel"
+import { getTelegramUser, getTelegramWebApp, isInTelegram } from "./telegram"
+import { supabase } from "./supabase"
 
 const BASE_THEMES = {
   coral:    { name: "Коралл",  emoji: "🪸", primary: "#FF6B4A", primaryBright: "#FF8166", primaryGlow: "rgba(255,107,74,0.3)", secondary: "rgba(255,107,74,0.12)", success: "#52C97A", error: "#FF5C7A", accent: "#FFB347" },
@@ -32,30 +34,81 @@ const LIGHT_PALETTE = {
 }
 
 export function buildTheme(themeKey, mode) {
-  const base = BASE_THEMES[themeKey]
-  const palette = mode === "light" ? LIGHT_PALETTE[themeKey] : DARK_PALETTE[themeKey]
-  return { ...base, ...palette }
+  return { ...BASE_THEMES[themeKey], ...(mode === "light" ? LIGHT_PALETTE[themeKey] : DARK_PALETTE[themeKey]) }
 }
 
-export const BASE_THEMES_MAP = BASE_THEMES
+export const UserContext = createContext(null)
+export function useUser() { return useContext(UserContext) }
+
+const FREE_DAILY_LIMIT = 10
 
 export default function App() {
   const [theme, setTheme] = useState("coral")
   const [mode, setMode] = useState("dark")
+  const [tgUser, setTgUser] = useState(null)
+  const [dbUser, setDbUser] = useState(null)
+  const [userLoading, setUserLoading] = useState(true)
   const t = buildTheme(theme, mode)
 
+  useEffect(() => { initUser() }, [])
+
+  async function initUser() {
+    const tg = getTelegramWebApp()
+    if (tg) { tg.ready(); tg.expand() }
+
+    const user = getTelegramUser()
+    if (!user) { setUserLoading(false); return }
+
+    setTgUser(user)
+    const today = new Date().toISOString().split("T")[0]
+    const { data: existing } = await supabase.from("users").select("*").eq("id", user.id).single()
+
+    if (!existing) {
+      const { data } = await supabase.from("users").insert({
+        id: user.id, first_name: user.firstName, last_name: user.lastName,
+        username: user.username, photo_url: user.photoUrl,
+        tasks_today: 0, tasks_today_date: today,
+      }).select().single()
+      setDbUser(data)
+    } else {
+      const updates = { first_name: user.firstName, last_name: user.lastName, username: user.username, last_active: today }
+      if (existing.tasks_today_date !== today) { updates.tasks_today = 0; updates.tasks_today_date = today }
+      const { data } = await supabase.from("users").update(updates).eq("id", user.id).select().single()
+      setDbUser(data)
+    }
+    setUserLoading(false)
+  }
+
+  async function incrementTasksToday() {
+    if (!dbUser) return
+    const today = new Date().toISOString().split("T")[0]
+    const newCount = (dbUser.tasks_today_date === today ? dbUser.tasks_today : 0) + 1
+    const { data } = await supabase.from("users")
+      .update({ tasks_today: newCount, tasks_today_date: today, total_tasks: (dbUser.total_tasks || 0) + 1 })
+      .eq("id", dbUser.id).select().single()
+    setDbUser(data)
+  }
+
+  const today = new Date().toISOString().split("T")[0]
+  const tasksToday = dbUser?.tasks_today_date === today ? dbUser?.tasks_today || 0 : 0
+  const canDoTask = !dbUser || dbUser.is_premium || tasksToday < FREE_DAILY_LIMIT
+
+  const userCtx = { tgUser, dbUser, userLoading, tasksToday, canDoTask, freeLimit: FREE_DAILY_LIMIT, incrementTasksToday, isInTelegram: isInTelegram() }
+
   return (
-    <BrowserRouter>
-      <div style={{ background: t.bg, minHeight: "100vh", color: t.text }}>
-        <Routes>
-          <Route path="/" element={<Home t={t} theme={theme} setTheme={setTheme} mode={mode} setMode={setMode} />} />
-          <Route path="/profile" element={<Profile t={t} theme={theme} setTheme={setTheme} mode={mode} setMode={setMode} />} />
-          <Route path="/ege" element={<EgeTasks t={t} />} />
-          <Route path="/ege/test" element={<EgeTest t={t} />} />
-          <Route path="/admin" element={<AdminPanel />} />
-        </Routes>
-        <BottomNav t={t} />
-      </div>
-    </BrowserRouter>
+    <UserContext.Provider value={userCtx}>
+      <BrowserRouter>
+        <div style={{ background: t.bg, minHeight: "100vh", color: t.text }}>
+          <Routes>
+            <Route path="/" element={<Home t={t} theme={theme} setTheme={setTheme} mode={mode} setMode={setMode} />} />
+            <Route path="/profile" element={<Profile t={t} theme={theme} setTheme={setTheme} mode={mode} setMode={setMode} />} />
+            <Route path="/ege" element={<EgeTasks t={t} />} />
+            <Route path="/ege/test" element={<EgeTest t={t} />} />
+            <Route path="/admin" element={<AdminPanel />} />
+          </Routes>
+          <BottomNav t={t} />
+        </div>
+      </BrowserRouter>
+    </UserContext.Provider>
   )
 }
