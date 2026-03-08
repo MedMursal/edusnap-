@@ -14,13 +14,22 @@ export default function WorkOnErrors({ t }) {
 
   async function fetchErrors() {
     setLoading(true);
+    // Берём все ответы пользователя
     const { data } = await supabase
       .from("user_answers")
       .select("*")
       .eq("user_id", tgUser.id)
-      .eq("is_correct", false)
       .order("created_at", { ascending: false });
-    setErrors(data || []);
+
+    // Для каждого task_id берём только последний ответ
+    const latestByTask = {};
+    (data || []).forEach(row => {
+      if (!latestByTask[row.task_id]) latestByTask[row.task_id] = row;
+    });
+
+    // Оставляем только те где последний ответ неправильный
+    const errors = Object.values(latestByTask).filter(r => !r.is_correct);
+    setErrors(errors);
     setLoading(false);
   }
 
