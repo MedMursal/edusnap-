@@ -7,6 +7,41 @@ const SUBJECT_EMOJIS = {
   "Русский язык": "📝", "История": "📜", "Обществознание": "🏛️", "Информатика": "💻",
 };
 
+function Select({ label, value, onChange, options, placeholder, t }) {
+  return (
+    <div style={{ position: "relative", marginBottom: 12 }}>
+      <label style={{ display: "block", fontSize: 11, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, marginBottom: 6 }}>
+        {label}
+      </label>
+      <div style={{ position: "relative" }}>
+        <select
+          value={value || ""}
+          onChange={e => onChange(e.target.value || null)}
+          style={{
+            width: "100%", appearance: "none", WebkitAppearance: "none",
+            background: t.surface, border: `1.5px solid ${value ? t.primary : t.border}`,
+            color: value ? t.primary : t.textMuted,
+            borderRadius: 16, padding: "13px 44px 13px 16px",
+            fontSize: 15, fontWeight: value ? 700 : 400,
+            cursor: "pointer", outline: "none",
+            boxShadow: value ? `0 0 0 3px ${t.primary}22` : "none",
+            transition: "all 0.15s",
+          }}
+        >
+          <option value="">{placeholder}</option>
+          {options.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <span style={{
+          position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
+          color: value ? t.primary : t.textMuted, fontSize: 18, pointerEvents: "none",
+        }}>⌄</span>
+      </div>
+    </div>
+  );
+}
+
 export default function EgeTasks({ t }) {
   const navigate = useNavigate();
   const [meta, setMeta] = useState([]);
@@ -31,7 +66,6 @@ export default function EgeTasks({ t }) {
     ? [...new Set(meta.filter(x => x.subject === subject).map(x => x.topic).filter(Boolean))].sort()
     : [];
 
-  // Lines filtered by subject + optional topic
   const lines = subject
     ? [...new Set(
         meta
@@ -48,15 +82,9 @@ export default function EgeTasks({ t }) {
     ).length;
   }
 
-  function countTopicLines(tp) {
-    return [...new Set(
-      meta.filter(x => x.subject === subject && x.topic === tp && x.line_number != null).map(x => x.line_number)
-    )].length;
-  }
-
-  function selectSubject(s) { setSubject(s === subject ? null : s); setTopic(null); setLine(null); }
-  function selectTopic(tp) { setTopic(tp === topic ? null : tp); setLine(null); }
-  function selectLine(ln) { setLine(ln === line ? null : ln); }
+  function handleSubject(s) { setSubject(s); setTopic(null); setLine(null); }
+  function handleTopic(tp) { setTopic(tp); setLine(null); }
+  function handleLine(ln) { setLine(ln ? parseInt(ln) : null); }
 
   const canStart = subject && (topic || line);
   const startCount = countTasks(subject, topic, line);
@@ -69,21 +97,11 @@ export default function EgeTasks({ t }) {
     navigate(`/ege/test?${params.toString()}`);
   }
 
-  function Badge({ count, active }) {
-    return (
-      <span style={{
-        fontSize: 11, borderRadius: 99, padding: "2px 8px", flexShrink: 0,
-        color: active ? t.primary : t.textMuted,
-        background: active ? `${t.primary}22` : t.surfaceUp,
-      }}>{count}</span>
-    );
-  }
-
   return (
     <div style={{ minHeight: "100vh", background: t.bg, color: t.text, paddingBottom: 140 }}>
 
-      <div style={{ padding: "28px 20px 16px" }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: t.text }}>Задания ЕГЭ</h1>
+      <div style={{ padding: "28px 20px 20px" }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Задания ЕГЭ</h1>
         <p style={{ margin: "5px 0 0", color: t.textMuted, fontSize: 14 }}>{totalCount} заданий в базе</p>
       </div>
 
@@ -93,90 +111,76 @@ export default function EgeTasks({ t }) {
         <div style={{ padding: "0 16px" }}>
 
           {/* ПРЕДМЕТ */}
-          <Section label="Предмет" t={t}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {subjects.map(s => {
-                const active = subject === s;
-                return (
-                  <button key={s} onClick={() => selectSubject(s)} style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    background: active ? t.secondary : t.surface,
-                    border: `1.5px solid ${active ? t.primary : t.border}`,
-                    color: active ? t.primary : t.text,
-                    borderRadius: 20, padding: "12px 14px",
-                    cursor: "pointer", fontSize: 14,
-                    fontWeight: active ? 700 : 400, transition: "all 0.15s",
-                  }}>
-                    <span style={{ fontSize: 20 }}>{SUBJECT_EMOJIS[s] || "📚"}</span>
-                    <span style={{ flex: 1, textAlign: "left" }}>{s}</span>
-                    <Badge count={countTasks(s, null, null)} active={active} />
-                  </button>
-                );
-              })}
-            </div>
-          </Section>
+          <Select
+            label="Предмет"
+            value={subject}
+            onChange={handleSubject}
+            placeholder="— выбери предмет —"
+            t={t}
+            options={subjects.map(s => ({
+              value: s,
+              label: `${SUBJECT_EMOJIS[s] || "📚"} ${s}  (${countTasks(s, null, null)})`,
+            }))}
+          />
 
-          {/* ТЕМА (необязательно) */}
+          {/* ТЕМА */}
           {subject && topics.length > 0 && (
-            <Section label="Тема (необязательно)" t={t}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {topics.map(tp => {
-                  const active = topic === tp;
-                  const lineCount = countTopicLines(tp);
-                  return (
-                    <button key={tp} onClick={() => selectTopic(tp)} style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      background: active ? t.secondary : t.surface,
-                      border: `1.5px solid ${active ? t.primary : t.border}`,
-                      color: active ? t.primary : t.text,
-                      borderRadius: 999, padding: "11px 16px",
-                      cursor: "pointer", fontSize: 14,
-                      fontWeight: active ? 700 : 400, transition: "all 0.15s", textAlign: "left",
-                    }}>
-                      <span style={{ flex: 1 }}>{tp}</span>
-                      {lineCount > 0 && (
-                        <span style={{ fontSize: 11, color: active ? t.primary : t.textMuted, marginRight: 4 }}>
-                          {lineCount} лин.
-                        </span>
-                      )}
-                      <Badge count={countTasks(subject, tp, null)} active={active} />
-                    </button>
-                  );
-                })}
-              </div>
-            </Section>
+            <Select
+              label="Тема (необязательно)"
+              value={topic}
+              onChange={handleTopic}
+              placeholder="— все темы —"
+              t={t}
+              options={topics.map(tp => ({
+                value: tp,
+                label: `${tp}  (${countTasks(subject, tp, null)})`,
+              }))}
+            />
           )}
 
-          {/* ЛИНИЯ (необязательно) */}
+          {/* ЛИНИЯ */}
           {subject && lines.length > 0 && (
-            <Section label={topic ? `Линии · ${topic}` : "Линия (необязательно)"} t={t}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
-                {lines.map(ln => {
-                  const active = line === ln;
-                  const count = countTasks(subject, topic, ln);
-                  return (
-                    <button key={ln} onClick={() => selectLine(ln)} style={{
-                      display: "flex", flexDirection: "column", alignItems: "center",
-                      justifyContent: "center", gap: 3,
-                      background: active ? t.secondary : t.surface,
-                      border: `1.5px solid ${active ? t.primary : t.border}`,
-                      borderRadius: 18, padding: "12px 6px",
-                      cursor: "pointer", transition: "all 0.15s",
-                      boxShadow: active ? `0 2px 10px ${t.primaryGlow}` : "none",
-                    }}>
-                      <span style={{ fontSize: 20, fontWeight: 900, color: active ? t.primary : t.text }}>{ln}</span>
-                      <span style={{ fontSize: 10, color: active ? t.primary : t.textMuted }}>{count} зад.</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </Section>
+            <Select
+              label={topic ? `Линия · ${topic}` : "Линия (необязательно)"}
+              value={line != null ? String(line) : ""}
+              onChange={handleLine}
+              placeholder="— все линии —"
+              t={t}
+              options={lines.map(ln => ({
+                value: String(ln),
+                label: `Линия ${ln}  (${countTasks(subject, topic, ln)} зад.)`,
+              }))}
+            />
           )}
 
+          {/* Подсказка */}
           {subject && !topic && !line && (
-            <p style={{ color: t.textMuted, fontSize: 13, textAlign: "center", marginTop: 4 }}>
+            <p style={{ color: t.textMuted, fontSize: 13, textAlign: "center", marginTop: 12 }}>
               Выбери тему, линию или оба фильтра сразу
             </p>
+          )}
+
+          {/* Карточка-превью */}
+          {canStart && (
+            <div style={{
+              marginTop: 8, background: t.surface,
+              border: `1.5px solid ${t.border}`, borderRadius: 20,
+              padding: "16px 18px", display: "flex", alignItems: "center", gap: 12,
+            }}>
+              <div style={{ fontSize: 32 }}>{SUBJECT_EMOJIS[subject] || "📚"}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: t.text }}>{subject}</div>
+                <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>
+                  {topic && <span>{topic}</span>}
+                  {topic && line && <span style={{ margin: "0 6px", opacity: 0.4 }}>·</span>}
+                  {line && <span>Линия {line}</span>}
+                </div>
+              </div>
+              <div style={{
+                background: `${t.primary}22`, color: t.primary,
+                borderRadius: 99, padding: "4px 12px", fontWeight: 700, fontSize: 14,
+              }}>{startCount}</div>
+            </div>
           )}
 
         </div>
@@ -195,28 +199,11 @@ export default function EgeTasks({ t }) {
             color: "#fff", border: "none", borderRadius: 999,
             padding: "16px", fontWeight: 700, fontSize: 16,
             cursor: "pointer", boxShadow: `0 4px 24px ${t.primaryGlow}`,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}>
-            <span>🚀 Начать тест</span>
-            {topic && <span style={{ opacity: 0.8, fontWeight: 400, fontSize: 13 }}>· {topic}</span>}
-            {line && <span style={{ opacity: 0.8, fontWeight: 400, fontSize: 13 }}>· Линия {line}</span>}
-            <span style={{ opacity: 0.6, fontWeight: 400, fontSize: 12 }}>({startCount} зад.)</span>
+            🚀 Начать · {startCount} заданий
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function Section({ label, t, children }) {
-  return (
-    <div style={{ marginBottom: 24 }}>
-      <p style={{
-        margin: "0 0 10px", fontSize: 11,
-        color: t.textMuted, textTransform: "uppercase",
-        letterSpacing: "0.08em", fontWeight: 700,
-      }}>{label}</p>
-      {children}
     </div>
   );
 }
