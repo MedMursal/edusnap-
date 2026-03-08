@@ -2,14 +2,20 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 
-const SUBJECT_EMOJIS = {
-  "Биология": "🧬", "Химия": "⚗️", "Физика": "⚡", "Математика": "📐",
-  "Русский язык": "📝", "История": "📜", "Обществознание": "🏛️", "Информатика": "💻",
+const SUBJECTS = {
+  "Биология":      { emoji: "🧬", color: "#4ade80", bg: "#052e16" },
+  "Химия":         { emoji: "⚗️",  color: "#fb923c", bg: "#1c0a00" },
+  "Физика":        { emoji: "⚡",  color: "#facc15", bg: "#1a1500" },
+  "Математика":    { emoji: "📐",  color: "#60a5fa", bg: "#0a1628" },
+  "Русский язык":  { emoji: "📝",  color: "#f472b6", bg: "#1a0011" },
+  "История":       { emoji: "📜",  color: "#c084fc", bg: "#120820" },
+  "Обществознание":{ emoji: "🏛️",  color: "#34d399", bg: "#021a0e" },
+  "Информатика":   { emoji: "💻",  color: "#38bdf8", bg: "#001520" },
 };
 
 function Select({ label, value, onChange, options, placeholder, t }) {
   return (
-    <div style={{ position: "relative", marginBottom: 12 }}>
+    <div style={{ marginBottom: 12 }}>
       <label style={{ display: "block", fontSize: 11, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, marginBottom: 6 }}>
         {label}
       </label>
@@ -82,7 +88,7 @@ export default function EgeTasks({ t }) {
     ).length;
   }
 
-  function handleSubject(s) { setSubject(s); setTopic(null); setLine(null); }
+  function handleSubject(s) { setSubject(s === subject ? null : s); setTopic(null); setLine(null); }
   function handleTopic(tp) { setTopic(tp); setLine(null); }
   function handleLine(ln) { setLine(ln ? parseInt(ln) : null); }
 
@@ -97,6 +103,8 @@ export default function EgeTasks({ t }) {
     navigate(`/ege/test?${params.toString()}`);
   }
 
+  const subjectInfo = subject ? (SUBJECTS[subject] || { emoji: "📚", color: t.primary, bg: t.surface }) : null;
+
   return (
     <div style={{ minHeight: "100vh", background: t.bg, color: t.text, paddingBottom: 140 }}>
 
@@ -110,77 +118,116 @@ export default function EgeTasks({ t }) {
       ) : (
         <div style={{ padding: "0 16px" }}>
 
-          {/* ПРЕДМЕТ */}
-          <Select
-            label="Предмет"
-            value={subject}
-            onChange={handleSubject}
-            placeholder="— выбери предмет —"
-            t={t}
-            options={subjects.map(s => ({
-              value: s,
-              label: `${SUBJECT_EMOJIS[s] || "📚"} ${s}  (${countTasks(s, null, null)})`,
-            }))}
-          />
-
-          {/* ТЕМА */}
-          {subject && topics.length > 0 && (
-            <Select
-              label="Тема (необязательно)"
-              value={topic}
-              onChange={handleTopic}
-              placeholder="— все темы —"
-              t={t}
-              options={topics.map(tp => ({
-                value: tp,
-                label: `${tp}  (${countTasks(subject, tp, null)})`,
-              }))}
-            />
-          )}
-
-          {/* ЛИНИЯ */}
-          {subject && lines.length > 0 && (
-            <Select
-              label={topic ? `Линия · ${topic}` : "Линия (необязательно)"}
-              value={line != null ? String(line) : ""}
-              onChange={handleLine}
-              placeholder="— все линии —"
-              t={t}
-              options={lines.map(ln => ({
-                value: String(ln),
-                label: `Линия ${ln}  (${countTasks(subject, topic, ln)} зад.)`,
-              }))}
-            />
-          )}
-
-          {/* Подсказка */}
-          {subject && !topic && !line && (
-            <p style={{ color: t.textMuted, fontSize: 13, textAlign: "center", marginTop: 12 }}>
-              Выбери тему, линию или оба фильтра сразу
-            </p>
-          )}
-
-          {/* Карточка-превью */}
-          {canStart && (
-            <div style={{
-              marginTop: 8, background: t.surface,
-              border: `1.5px solid ${t.border}`, borderRadius: 20,
-              padding: "16px 18px", display: "flex", alignItems: "center", gap: 12,
-            }}>
-              <div style={{ fontSize: 32 }}>{SUBJECT_EMOJIS[subject] || "📚"}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: t.text }}>{subject}</div>
-                <div style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>
-                  {topic && <span>{topic}</span>}
-                  {topic && line && <span style={{ margin: "0 6px", opacity: 0.4 }}>·</span>}
-                  {line && <span>Линия {line}</span>}
-                </div>
+          {/* ── ПРЕДМЕТ — большие карточки ── */}
+          {!subject && (
+            <>
+              <p style={{ margin: "0 0 12px", fontSize: 11, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Предмет</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {subjects.map(s => {
+                  const info = SUBJECTS[s] || { emoji: "📚", color: t.primary, bg: t.surface };
+                  const count = countTasks(s, null, null);
+                  return (
+                    <button key={s} onClick={() => handleSubject(s)} style={{
+                      background: info.bg,
+                      border: `2px solid ${info.color}33`,
+                      borderRadius: 24, padding: "24px 16px 20px",
+                      cursor: "pointer", transition: "all 0.18s",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
+                      boxShadow: `0 4px 24px ${info.color}18`,
+                    }}>
+                      <span style={{ fontSize: 52, lineHeight: 1 }}>{info.emoji}</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: info.color, textAlign: "center" }}>{s}</span>
+                      <span style={{
+                        fontSize: 11, color: info.color, opacity: 0.7,
+                        background: `${info.color}18`, borderRadius: 99,
+                        padding: "2px 10px", fontWeight: 600,
+                      }}>{count} зад.</span>
+                    </button>
+                  );
+                })}
               </div>
-              <div style={{
-                background: `${t.primary}22`, color: t.primary,
-                borderRadius: 99, padding: "4px 12px", fontWeight: 700, fontSize: 14,
-              }}>{startCount}</div>
-            </div>
+            </>
+          )}
+
+          {/* ── После выбора предмета — шапка + фильтры ── */}
+          {subject && (
+            <>
+              {/* Выбранный предмет — кликабельная шапка */}
+              <button onClick={() => handleSubject(subject)} style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 14,
+                background: subjectInfo.bg,
+                border: `2px solid ${subjectInfo.color}55`,
+                borderRadius: 20, padding: "14px 18px",
+                cursor: "pointer", marginBottom: 20,
+                boxShadow: `0 4px 20px ${subjectInfo.color}22`,
+              }}>
+                <span style={{ fontSize: 36 }}>{subjectInfo.emoji}</span>
+                <div style={{ flex: 1, textAlign: "left" }}>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: subjectInfo.color }}>{subject}</div>
+                  <div style={{ fontSize: 12, color: subjectInfo.color, opacity: 0.6, marginTop: 1 }}>нажми чтобы сменить</div>
+                </div>
+                <span style={{ fontSize: 20, color: subjectInfo.color, opacity: 0.5 }}>✕</span>
+              </button>
+
+              {/* Тема */}
+              {topics.length > 0 && (
+                <Select
+                  label="Тема (необязательно)"
+                  value={topic}
+                  onChange={handleTopic}
+                  placeholder="— все темы —"
+                  t={t}
+                  options={topics.map(tp => ({
+                    value: tp,
+                    label: `${tp}  (${countTasks(subject, tp, null)})`,
+                  }))}
+                />
+              )}
+
+              {/* Линия */}
+              {lines.length > 0 && (
+                <Select
+                  label={topic ? `Линия · ${topic}` : "Линия (необязательно)"}
+                  value={line != null ? String(line) : ""}
+                  onChange={handleLine}
+                  placeholder="— все линии —"
+                  t={t}
+                  options={lines.map(ln => ({
+                    value: String(ln),
+                    label: `Линия ${ln}  (${countTasks(subject, topic, ln)} зад.)`,
+                  }))}
+                />
+              )}
+
+              {!topic && !line && (
+                <p style={{ color: t.textMuted, fontSize: 13, textAlign: "center", marginTop: 8 }}>
+                  Выбери тему, линию или оба фильтра сразу
+                </p>
+              )}
+
+              {/* Превью */}
+              {canStart && (
+                <div style={{
+                  marginTop: 8, background: t.surface,
+                  border: `1.5px solid ${t.border}`, borderRadius: 20,
+                  padding: "14px 18px", display: "flex", alignItems: "center", gap: 12,
+                }}>
+                  <span style={{ fontSize: 28 }}>{subjectInfo.emoji}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: t.text }}>{subject}</div>
+                    <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
+                      {topic && <span>{topic}</span>}
+                      {topic && line && <span style={{ margin: "0 5px", opacity: 0.4 }}>·</span>}
+                      {line && <span>Линия {line}</span>}
+                    </div>
+                  </div>
+                  <div style={{
+                    background: `${t.primary}22`, color: t.primary,
+                    borderRadius: 99, padding: "4px 12px", fontWeight: 700, fontSize: 14,
+                  }}>{startCount}</div>
+                </div>
+              )}
+            </>
           )}
 
         </div>
