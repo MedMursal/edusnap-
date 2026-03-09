@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
+import { useUser } from "../App";
 
 const SUBJECTS = {
   "Биология":      { emoji: "🧬", color: "#4ade80", bg: "#052e16" },
@@ -50,17 +51,18 @@ function Select({ label, value, onChange, options, placeholder, t }) {
 
 export default function EgeTasks({ t }) {
   const navigate = useNavigate();
+  const { tgUser, dbUser } = useUser();
   const [meta, setMeta] = useState([]);
   const [loading, setLoading] = useState(true);
   const [subject, setSubject] = useState(null);
   const [topic, setTopic] = useState(null);
   const [line, setLine] = useState(null);
+  const [randomLoading, setRandomLoading] = useState(false);
 
   useEffect(() => { fetchMeta(); }, []);
 
   async function fetchMeta() {
     setLoading(true);
-    // Supabase лимит 1000 строк — грузим батчами
     let all = [];
     let from = 0;
     const BATCH = 1000;
@@ -76,6 +78,41 @@ export default function EgeTasks({ t }) {
     }
     setMeta(all);
     setLoading(false);
+  }
+
+  async function startRandom() {
+    setRandomLoading(true);
+    const userId = tgUser?.id || dbUser?.id;
+
+    // Берём ID заданий которые уже решены правильно
+    let solvedIds = [];
+    if (userId) {
+      const { data: solved } = await supabase
+        .from("user_answers")
+        .select("task_id")
+        .eq("user_id", userId)
+        .eq("is_correct", true);
+      solvedIds = (solved || []).map(a => a.task_id);
+    }
+
+    // Берём все ID заданий
+    let allIds = [];
+    let from = 0;
+    const BATCH = 1000;
+    while (true) {
+      let query = supabase.from("ege_tasks").select("id").range(from, from + BATCH - 1);
+      if (solvedIds.length > 0) query = query.not("id", "in", `(${solvedIds.slice(0, 200).join(",")})`);
+      const { data } = await query;
+      if (!data || data.length === 0) break;
+      allIds = allIds.concat(data.map(x => x.id));
+      if (data.length < BATCH) break;
+      from += BATCH;
+    }
+
+    // Перемешиваем и берём 20
+    const shuffled = allIds.sort(() => Math.random() - 0.5).slice(0, 20);
+    setRandomLoading(false);
+    navigate(`/ege/test?ids=${shuffled.join(",")}`);
   }
 
   const totalCount = meta.length;
@@ -131,10 +168,37 @@ export default function EgeTasks({ t }) {
       ) : (
         <div style={{ padding: "0 16px" }}>
 
+          {/* ── СЛУЧАЙНЫЕ ЗАДАНИЯ ── */}
+          {!subject && (
+            <button
+              onClick={startRandom}
+              disabled={randomLoading}
+              style={{
+                width: "100%", marginBottom: 20,
+                background: `linear-gradient(135deg, ${t.primary}, ${t.primaryBright})`,
+                border: "none", borderRadius: 20, padding: "18px 20px",
+                cursor: randomLoading ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                boxShadow: `0 4px 24px ${t.primaryGlow}`,
+                opacity: randomLoading ? 0.7 : 1,
+              }}
+            >
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>
+                  {randomLoading ? "⏳ Подбираем..." : "🎲 Случайные задания"}
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 3 }}>
+                  20 новых заданий · только те что ещё не решал
+                </div>
+              </div>
+              <span style={{ fontSize: 28 }}>→</span>
+            </button>
+          )}
+
           {/* ── ПРЕДМЕТ — большие карточки ── */}
           {!subject && (
             <>
-              <p style={{ margin: "0 0 12px", fontSize: 11, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Предмет</p>
+              <p style={{ margin: "0 0 12px", fontSize: 11, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Или выбери предмет</p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 {subjects.map(s => {
                   const info = SUBJECTS[s] || { emoji: "📚", color: t.primary, bg: t.surface };
@@ -162,7 +226,7 @@ export default function EgeTasks({ t }) {
             </>
           )}
 
-          {/* ── После выбора предмета — шапка + фильтры ── */}
+          {/* ── После выбора предмета ── */}
           {subject && (
             <>
               <button onClick={() => handleSubject(subject)} style={{

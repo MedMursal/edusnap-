@@ -230,6 +230,7 @@ export default function EgeTest({ t }) {
   const subtopicParam = searchParams.get("subtopic");
   const lineParam = searchParams.get("line");
   const errorIdsParam = searchParams.get("error_ids");
+  const idsParam = searchParams.get("ids");
 
   const [tasks, setTasks] = useState([]);
   const [skippedOnce, setSkippedOnce] = useState(new Map());
@@ -258,15 +259,20 @@ export default function EgeTest({ t }) {
   async function fetchTasks() {
     setLoading(true);
     let q = supabase.from("ege_tasks").select("*");
-    if (errorIdsParam) { q = q.in("source_id", errorIdsParam.split(",")); }
-    else {
+    if (idsParam) {
+      q = q.in("id", idsParam.split(","));
+    } else if (errorIdsParam) {
+      q = q.in("source_id", errorIdsParam.split(","));
+    } else {
       if (subjectParam) q = q.eq("subject", subjectParam);
       if (topicParam) q = q.eq("topic", topicParam);
       if (subtopicParam) q = q.eq("subtopic", subtopicParam);
       if (lineParam) q = q.eq("line_number", parseInt(lineParam));
     }
     const { data } = await q;
-    setTasks((data || []).sort(() => Math.random() - 0.5).slice(0, 10));
+    const shuffled = (data || []).sort(() => Math.random() - 0.5);
+    // Для обычного режима лимит 10, для случайного (idsParam) — без лимита
+    setTasks(idsParam ? shuffled : shuffled.slice(0, 10));
     setLoading(false);
   }
 
@@ -286,21 +292,14 @@ export default function EgeTest({ t }) {
 
   async function handleExit() {
     await saveSkippedOnExit();
-    // Если вышел с неотвеченного задания — тоже в ошибки
     if (!answered && tasks.length > 0 && !finished) {
       const task = tasks[current];
       const userId = tgUser?.id || dbUser?.id;
       if (userId) {
         await supabase.from("user_answers").insert({
-          user_id: userId,
-          task_id: task.source_id || String(task.id),
-          is_correct: false,
-          user_answer: "пропущено",
-          correct_answer: task.answer,
-          topic: task.topic,
-          subtopic: task.subtopic,
-          line_number: task.line_number,
-          subject: task.subject,
+          user_id: userId, task_id: task.source_id || String(task.id),
+          is_correct: false, user_answer: "пропущено", correct_answer: task.answer,
+          topic: task.topic, subtopic: task.subtopic, line_number: task.line_number, subject: task.subject,
         });
       }
     }
@@ -374,23 +373,22 @@ export default function EgeTest({ t }) {
     return Array.from({ length: d.length > 0 ? Math.max(...d) : 3 }, (_, i) => i + 1);
   }
 
-  function norm(a) { return (a || "").trim().toLowerCase().replace(/[\s,.\-]/g, ""); }
-
   function checkAnswer(override) {
     const task = tasks[current];
     const type = getTaskType(task);
     let given = "";
     if (type === "multiselect") given = [...selectedMulti].sort().join("");
     else if (type === "match") { const rows = getMatchRows(task); given = rows ? rows.map((_, i) => matchAnswers[i] || "0").join("") : norm(userAnswer); }
-    else given = norm(override || userAnswer);
+    else given = override !== undefined ? override : userAnswer;
 
     const normVal = s => s.trim().toLowerCase().replace(/[\s\-]/g, "").replace(/,/g, ".");
     const allVariants = new Set();
-      (task.answer || "").split(/\/|\|\|/).forEach(part => {
-        const v = normVal(part);
-        if (v) allVariants.add(v);
+    (task.answer || "").split(/\/|\|\|/).forEach(part => {
+      const v = normVal(part);
+      if (v) allVariants.add(v);
     });
     const correct = [...allVariants].some(v => v === normVal(given));
+
     if (correct) {
       const taskId = task.source_id || String(task.id);
       setSkippedOnce(prev => { const next = new Map(prev); next.delete(taskId); return next; });
@@ -405,6 +403,8 @@ export default function EgeTest({ t }) {
     setResults(prev => [...prev, { task, userAnswer: given, correct, skipped: false }]);
     saveAnswer(task, given, correct);
   }
+
+  function norm(a) { return (a || "").trim().toLowerCase().replace(/[\s,.\-]/g, ""); }
 
   function animateToNext(callback) {
     if (transitioning) return;
