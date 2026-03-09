@@ -50,8 +50,8 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
   const navigate = useNavigate()
   const { tgUser, dbUser } = useUser()
 
-  const quote = QUOTES[new Date().getDay() % QUOTES.length];
-
+  const quote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+  
   useEffect(() => {
     const userId = tgUser?.id || dbUser?.id;
     if (!userId) return;
