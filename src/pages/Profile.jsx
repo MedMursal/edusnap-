@@ -2,21 +2,31 @@ import { motion } from "framer-motion"
 import { Settings, Zap, Target, Calendar } from "lucide-react"
 import { useUser } from "../App"
 import SettingsModal from "../components/ui/SettingsModal"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import { supabase } from "../supabase"
 
 export default function Profile({ t, theme, setTheme, mode, setMode }) {
-  const { tgUser, dbUser, userLoading, tasksToday, freeLimit, isInTelegram } = useUser()
+  const { tgUser, dbUser, userLoading, isInTelegram } = useUser()
   const [showSettings, setShowSettings] = useState(false)
+  const [userData, setUserData] = useState(null)
   const navigate = useNavigate()
 
   const displayName = tgUser
     ? [tgUser.firstName, tgUser.lastName].filter(Boolean).join(" ")
     : "Гость"
 
-  const xp = dbUser?.xp || 0
-  const totalTasks = dbUser?.total_tasks || 0
-  const streak = dbUser?.streak || 0
+  useEffect(() => {
+    const userId = tgUser?.id || dbUser?.id;
+    if (!userId) return;
+    supabase.from("users").select("xp, streak, total_tasks")
+      .eq("id", userId).single()
+      .then(({ data }) => { if (data) setUserData(data); });
+  }, [tgUser?.id, dbUser?.id]);
+
+  const xp = userData?.xp ?? dbUser?.xp ?? 0;
+  const totalTasks = userData?.total_tasks ?? dbUser?.total_tasks ?? 0;
+  const streak = userData?.streak ?? dbUser?.streak ?? 0;
 
   return (
     <div style={{ padding: "24px 16px 100px" }}>
@@ -71,38 +81,9 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
         </div>
       </motion.div>
 
-      {/* Лимит */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-        style={{
-          background: t.surface, borderRadius: 24, padding: 16,
-          border: `1px solid ${t.border}`, marginBottom: 16,
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Target size={16} color={t.primary} />
-            <span style={{ fontWeight: 700, fontSize: 14, color: t.text }}>Задания сегодня</span>
-          </div>
-          <span style={{ fontSize: 13, color: tasksToday >= freeLimit ? t.error : t.textMuted, fontWeight: 600 }}>
-            {tasksToday} / {freeLimit}
-          </span>
-        </div>
-        <div style={{ background: t.surfaceUp, borderRadius: 999, height: 6 }}>
-          <div style={{
-            height: 6, borderRadius: 999,
-            width: `${Math.min((tasksToday / freeLimit) * 100, 100)}%`,
-            background: tasksToday >= freeLimit
-              ? `linear-gradient(90deg, ${t.error}, #FF8C8C)`
-              : `linear-gradient(90deg, ${t.primary}, ${t.primaryBright})`,
-            transition: "width 0.4s ease",
-          }} />
-        </div>
-      </motion.div>
-
       {/* Статистика */}
       <motion.div
-        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
         style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}
       >
         {[
@@ -123,7 +104,7 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
 
       {/* Работа над ошибками */}
       <motion.button
-        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
         whileTap={{ scale: 0.97 }}
         onClick={() => navigate("/errors")}
         style={{
