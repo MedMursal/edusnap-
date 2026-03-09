@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useUser } from "../App";
 
-// ─── XP CONFIG ───────────────────────────────────────────────
 const XP_CONFIG = {
   биология: {
     1: 10, 2: 10, 3: 10, 4: 10, 5: 10,
@@ -23,7 +22,6 @@ const XP_CONFIG = {
     22: 20, 23: 20, 24: 20,
     25: 10, 26: 10, 27: 10, 28: 10,
   },
-  // физика: { 1: 10, 2: 15, ... },
 };
 const DEFAULT_XP = 10;
 
@@ -33,11 +31,54 @@ function getXpForTask(task) {
   const table = XP_CONFIG[subject] || XP_CONFIG["биология"];
   return table[line] ?? DEFAULT_XP;
 }
-// ─────────────────────────────────────────────────────────────
 
 function EgeStyles({ t }) {
   return (
     <style>{`
+      @keyframes slideInRight {
+        from { opacity: 0; transform: translateX(40px); }
+        to   { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes slideOutLeft {
+        from { opacity: 1; transform: translateX(0); }
+        to   { opacity: 0; transform: translateX(-40px); }
+      }
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes shake {
+        0%,100% { transform: translateX(0); }
+        15%     { transform: translateX(-8px); }
+        30%     { transform: translateX(8px); }
+        45%     { transform: translateX(-6px); }
+        60%     { transform: translateX(6px); }
+        75%     { transform: translateX(-3px); }
+        90%     { transform: translateX(3px); }
+      }
+      @keyframes correctPulse {
+        0%   { box-shadow: 0 0 0 0 ${t.success}55; }
+        50%  { box-shadow: 0 0 0 14px ${t.success}00; }
+        100% { box-shadow: 0 0 0 0 ${t.success}00; }
+      }
+      @keyframes xpPop {
+        0%   { opacity: 0; transform: translateX(-50%) translateY(0) scale(0.5); }
+        35%  { opacity: 1; transform: translateX(-50%) translateY(-20px) scale(1.25); }
+        65%  { opacity: 1; transform: translateX(-50%) translateY(-28px) scale(1); }
+        100% { opacity: 0; transform: translateX(-50%) translateY(-44px) scale(0.85); }
+      }
+      @keyframes resultIn {
+        from { opacity: 0; transform: translateY(14px) scale(0.97); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+      }
+
+      .et-task-enter { animation: slideInRight 0.32s cubic-bezier(0.22,1,0.36,1) both; }
+      .et-task-exit  { animation: slideOutLeft 0.2s ease-in both; }
+      .et-shake      { animation: shake 0.42s ease both; }
+      .et-correct-pulse { animation: correctPulse 0.55s ease both; }
+      .et-result-in  { animation: resultIn 0.28s cubic-bezier(0.22,1,0.36,1) both; }
+      .et-fade-in    { animation: fadeInUp 0.22s ease both; }
+
       .ege-question table{width:100%;border-collapse:collapse;margin:8px 0;}
       .ege-question td,.ege-question th{border:1px solid ${t.border};padding:5px 8px;color:${t.text};font-size:12px;}
       .ege-question th{background:${t.surfaceUp};font-weight:600;}
@@ -50,13 +91,16 @@ function EgeStyles({ t }) {
       .et-wrap{max-width:1100px;margin:0 auto;padding:76px 48px 80px;}
       .et-header-inner{max-width:1100px;margin:0 auto;padding:10px 48px;}
       .et-header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
-      .et-back{background:${t.surfaceUp};border:none;color:${t.textMuted};width:36px;height:36px;border-radius:999px;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+      .et-back{background:${t.surfaceUp};border:none;color:${t.textMuted};width:36px;height:36px;border-radius:999px;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
+      .et-back:hover{background:${t.border};}
       .et-counter{color:${t.text};font-size:14px;font-weight:600;}
       .et-score{color:${t.primary};font-size:14px;font-weight:700;min-width:40px;text-align:right;}
       .et-progress{height:5px;background:${t.surfaceUp};border-radius:999px;overflow:hidden;}
-      .et-progress-bar{height:100%;background:${t.primary};border-radius:999px;transition:width 0.3s;}
+      .et-progress-bar{height:100%;background:${t.primary};border-radius:999px;transition:width 0.5s cubic-bezier(0.22,1,0.36,1);}
 
-      .et-card{background:${t.surface};border-radius:20px;padding:16px;margin-bottom:12px;border:1px solid ${t.border};}
+      .et-card{background:${t.surface};border-radius:20px;padding:16px;margin-bottom:12px;border:2px solid ${t.border};transition:border-color 0.3s,box-shadow 0.3s;}
+      .et-card.correct{border-color:${t.success};box-shadow:0 0 0 3px ${t.success}28;}
+      .et-card.wrong{border-color:${t.error};box-shadow:0 0 0 3px ${t.error}28;}
       .et-tags{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
       .et-tag{font-size:11px;padding:3px 9px;border-radius:999px;}
       .et-tag-subject{background:${t.secondary};color:${t.primary};font-weight:600;}
@@ -68,30 +112,38 @@ function EgeStyles({ t }) {
       .et-hint{font-size:11px;color:${t.textMuted};padding-left:2px;margin-bottom:4px;}
       .et-answers{display:flex;flex-direction:column;gap:7px;}
 
-      .et-opt{display:flex;align-items:center;gap:10px;border-radius:999px;padding:10px 16px;cursor:pointer;border:2px solid ${t.border};background:${t.surface};color:${t.text};width:100%;text-align:left;transition:border-color 0.15s,background 0.15s;}
-      .et-opt:hover{border-color:${t.primary};}
+      .et-opt{display:flex;align-items:center;gap:10px;border-radius:999px;padding:10px 16px;cursor:pointer;border:2px solid ${t.border};background:${t.surface};color:${t.text};width:100%;text-align:left;transition:border-color 0.15s,background 0.15s,transform 0.12s,box-shadow 0.15s;}
+      .et-opt:hover{border-color:${t.primary};transform:translateY(-1px);box-shadow:0 4px 12px ${t.primary}22;}
+      .et-opt:active{transform:scale(0.98);}
       .et-opt.selected{background:${t.secondary};border-color:${t.primary};}
       .et-opt-num{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:12px;font-weight:700;flex-shrink:0;background:${t.surfaceUp};color:${t.textMuted};transition:background 0.15s,color 0.15s;}
       .et-opt.selected .et-opt-num{background:${t.primary};color:#fff;}
       .et-opt-letter{background:${t.secondary};color:${t.primary};}
       .et-opt-text{font-size:13px;}
 
-      .et-input{width:100%;background:${t.surface};border:2px solid ${t.border};color:${t.text};border-radius:999px;outline:none;transition:border-color 0.15s;}
-      .et-input:focus{border-color:${t.primary};}
+      .et-input{width:100%;background:${t.surface};border:2px solid ${t.border};color:${t.text};border-radius:999px;outline:none;transition:border-color 0.2s,box-shadow 0.2s;}
+      .et-input:focus{border-color:${t.primary};box-shadow:0 0 0 3px ${t.primary}22;}
       .et-input-seq{padding:11px 14px;font-size:22px;letter-spacing:5px;text-align:center;}
       .et-input-text{padding:10px 16px;font-size:13px;}
 
-      .et-btn-check{width:100%;background:linear-gradient(135deg,${t.primary},${t.primaryBright});color:#fff;padding:14px;border-radius:999px;font-size:14px;font-weight:700;cursor:pointer;border:none;transition:opacity 0.15s;box-shadow:0 4px 16px ${t.primaryGlow};}
-      .et-btn-check:hover:not(:disabled){opacity:0.9;}
+      .et-btn-check{width:100%;background:linear-gradient(135deg,${t.primary},${t.primaryBright});color:#fff;padding:14px;border-radius:999px;font-size:14px;font-weight:700;cursor:pointer;border:none;transition:opacity 0.15s,transform 0.12s,box-shadow 0.15s;box-shadow:0 4px 16px ${t.primaryGlow};}
+      .et-btn-check:hover:not(:disabled){opacity:0.92;transform:translateY(-1px);box-shadow:0 6px 20px ${t.primaryGlow};}
+      .et-btn-check:active:not(:disabled){transform:scale(0.97);}
       .et-btn-check:disabled{background:${t.surfaceUp};opacity:0.5;cursor:not-allowed;box-shadow:none;}
-      .et-btn-skip{width:100%;background:transparent;border:2px solid ${t.border};color:${t.textMuted};padding:11px;border-radius:999px;font-size:13px;cursor:pointer;transition:border-color 0.15s,color 0.15s;}
-      .et-btn-skip:hover{border-color:${t.primary};color:${t.text};}
-      .et-btn-skip-final{width:100%;background:transparent;border:2px solid #FF9500;color:#FF9500;padding:11px;border-radius:999px;font-size:13px;cursor:pointer;}
-      .et-btn-next{width:100%;background:linear-gradient(135deg,${t.primary},${t.primaryBright});color:#fff;padding:14px;border-radius:999px;font-size:14px;font-weight:700;cursor:pointer;border:none;box-shadow:0 4px 16px ${t.primaryGlow};}
+      .et-btn-skip{width:100%;background:transparent;border:2px solid ${t.border};color:${t.textMuted};padding:11px;border-radius:999px;font-size:13px;cursor:pointer;transition:border-color 0.15s,color 0.15s,transform 0.12s;}
+      .et-btn-skip:hover{border-color:${t.primary};color:${t.text};transform:translateY(-1px);}
+      .et-btn-skip-final{width:100%;background:transparent;border:2px solid #FF9500;color:#FF9500;padding:11px;border-radius:999px;font-size:13px;cursor:pointer;transition:transform 0.12s,box-shadow 0.15s;}
+      .et-btn-skip-final:hover{transform:translateY(-1px);box-shadow:0 4px 12px #FF950033;}
+      .et-btn-next{width:100%;background:linear-gradient(135deg,${t.primary},${t.primaryBright});color:#fff;padding:14px;border-radius:999px;font-size:14px;font-weight:700;cursor:pointer;border:none;box-shadow:0 4px 16px ${t.primaryGlow};transition:transform 0.12s,opacity 0.15s,box-shadow 0.15s;}
+      .et-btn-next:hover{transform:translateY(-1px);opacity:0.92;box-shadow:0 6px 20px ${t.primaryGlow};}
+      .et-btn-next:active{transform:scale(0.97);}
 
       .et-result-box{border-radius:20px;padding:13px 16px;text-align:center;font-size:14px;font-weight:700;}
       .et-solution{background:${t.surfaceUp};border-radius:16px;padding:10px 13px;font-size:12px;color:${t.textMuted};line-height:1.6;}
-      .et-solution-btn{color:${t.primary};font-size:12px;background:none;border:none;cursor:pointer;padding:2px 0;}
+      .et-solution-btn{color:${t.primary};font-size:12px;background:none;border:none;cursor:pointer;padding:2px 0;transition:opacity 0.15s;}
+      .et-solution-btn:hover{opacity:0.75;}
+
+      .xp-float{position:fixed;left:50%;top:38%;pointer-events:none;font-size:20px;font-weight:800;color:${t.primary};z-index:999;text-shadow:0 2px 8px ${t.primaryGlow};animation:xpPop 0.9s ease forwards;}
 
       @media(max-width:600px){
         .et-wrap{padding:66px 12px 80px;}
@@ -114,9 +166,7 @@ function MatchWidget({ rows, cols, answers, onChange, t }) {
   const [selected, setSelected] = useState(null);
   const leftRefs = useRef([]); const rightRefs = useRef([]);
   const containerRef = useRef(null); const [lines, setLines] = useState([]);
-
   useEffect(() => { setTimeout(computeLines, 50); }, [answers]);
-
   function computeLines() {
     if (!containerRef.current) return;
     const cRect = containerRef.current.getBoundingClientRect(); const nl = [];
@@ -129,21 +179,19 @@ function MatchWidget({ rows, cols, answers, onChange, t }) {
     });
     setLines(nl);
   }
-
   function handleLeft(i) { setSelected(selected === i ? null : i); }
   function handleRight(c) {
     if (selected === null) return;
     onChange({ ...answers, [selected]: String(c) }); setSelected(null); setTimeout(computeLines, 50);
   }
   function clearLine(i) { const n = { ...answers }; delete n[i]; onChange(n); setTimeout(computeLines, 50); }
-
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
       <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, minWidth: 0 }}>
           {rows.map((row, i) => (
             <button key={i} ref={el => leftRefs.current[i] = el} onClick={() => handleLeft(i)}
-              style={{ display: "flex", alignItems: "center", gap: 8, borderRadius: 999, padding: "10px 14px", fontSize: 12, cursor: "pointer", background: selected === i ? t.secondary : answers[i] ? t.surfaceUp : t.surface, border: `2px solid ${selected === i ? t.primary : answers[i] ? t.primary : t.border}`, color: t.text, width: "100%", textAlign: "left" }}>
+              style={{ display: "flex", alignItems: "center", gap: 8, borderRadius: 999, padding: "10px 14px", fontSize: 12, cursor: "pointer", background: selected === i ? t.secondary : answers[i] ? t.surfaceUp : t.surface, border: `2px solid ${selected === i ? t.primary : answers[i] ? t.primary : t.border}`, color: t.text, width: "100%", textAlign: "left", transition: "all 0.15s" }}>
               <span style={{ fontWeight: 700, color: t.primary, width: 18, flexShrink: 0 }}>{row.label})</span>
               <span style={{ lineHeight: 1.4, flex: 1 }}>{row.text}</span>
               {answers[i] && <span onClick={e => { e.stopPropagation(); clearLine(i); }} style={{ fontSize: 11, color: t.textDim, cursor: "pointer" }}>✕</span>}
@@ -157,7 +205,7 @@ function MatchWidget({ rows, cols, answers, onChange, t }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
           {cols.map((c, ci) => (
             <button key={ci} ref={el => rightRefs.current[ci] = el} onClick={() => handleRight(c)}
-              style={{ width: 36, height: 36, borderRadius: 999, fontSize: 14, fontWeight: 700, cursor: "pointer", background: selected !== null ? t.secondary : Object.values(answers).includes(String(c)) ? t.surfaceUp : t.surface, border: `2px solid ${selected !== null ? t.primary : Object.values(answers).includes(String(c)) ? t.primary : t.border}`, color: t.text }}>
+              style={{ width: 36, height: 36, borderRadius: 999, fontSize: 14, fontWeight: 700, cursor: "pointer", background: selected !== null ? t.secondary : Object.values(answers).includes(String(c)) ? t.surfaceUp : t.surface, border: `2px solid ${selected !== null ? t.primary : Object.values(answers).includes(String(c)) ? t.primary : t.border}`, color: t.text, transition: "all 0.15s" }}>
               {c}
             </button>
           ))}
@@ -166,6 +214,10 @@ function MatchWidget({ rows, cols, answers, onChange, t }) {
       {selected !== null && <div style={{ textAlign: "center", fontSize: 11, color: t.primary, marginTop: 6 }}>«{rows[selected]?.label})» — нажми цифру справа</div>}
     </div>
   );
+}
+
+function XpFloat({ xp, onDone }) {
+  return <div className="xp-float" onAnimationEnd={onDone}>⚡ +{xp} XP</div>;
 }
 
 export default function EgeTest({ t }) {
@@ -179,7 +231,6 @@ export default function EgeTest({ t }) {
   const errorIdsParam = searchParams.get("error_ids");
 
   const [tasks, setTasks] = useState([]);
-  // skippedOnce: Map taskId → task (чтобы при выходе сохранить в БД)
   const [skippedOnce, setSkippedOnce] = useState(new Map());
   const [current, setCurrent] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
@@ -194,18 +245,20 @@ export default function EgeTest({ t }) {
   const [xpEarned, setXpEarned] = useState(0);
   const [lastXp, setLastXp] = useState(0);
 
-  // Реф для доступа к skippedOnce внутри handleExit без stale closure
+  const [taskAnim, setTaskAnim] = useState("et-task-enter");
+  const [cardClass, setCardClass] = useState("");
+  const [showXpFloat, setShowXpFloat] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+
   const skippedOnceRef = useRef(skippedOnce);
   useEffect(() => { skippedOnceRef.current = skippedOnce; }, [skippedOnce]);
-
   useEffect(() => { fetchTasks(); }, []);
 
   async function fetchTasks() {
     setLoading(true);
     let q = supabase.from("ege_tasks").select("*");
-    if (errorIdsParam) {
-      q = q.in("source_id", errorIdsParam.split(","));
-    } else {
+    if (errorIdsParam) { q = q.in("source_id", errorIdsParam.split(",")); }
+    else {
       if (subjectParam) q = q.eq("subject", subjectParam);
       if (topicParam) q = q.eq("topic", topicParam);
       if (subtopicParam) q = q.eq("subtopic", subtopicParam);
@@ -216,87 +269,48 @@ export default function EgeTest({ t }) {
     setLoading(false);
   }
 
-  // Сохраняем все пропущенные задания как неправильные при выходе
   async function saveSkippedOnExit() {
     const skipped = skippedOnceRef.current;
     if (skipped.size === 0) return;
     const userId = tgUser?.id || dbUser?.id;
     if (!userId) return;
-
-    const inserts = Array.from(skipped.values()).map(task => ({
-      user_id: userId,
-      task_id: task.source_id || String(task.id),
-      is_correct: false,
-      user_answer: "пропущено",
-      correct_answer: task.answer,
-      topic: task.topic,
-      subtopic: task.subtopic,
-      line_number: task.line_number,
-      subject: task.subject,
-    }));
-
-    await supabase.from("user_answers").insert(inserts);
+    await supabase.from("user_answers").insert(
+      Array.from(skipped.values()).map(task => ({
+        user_id: userId, task_id: task.source_id || String(task.id),
+        is_correct: false, user_answer: "пропущено", correct_answer: task.answer,
+        topic: task.topic, subtopic: task.subtopic, line_number: task.line_number, subject: task.subject,
+      }))
+    );
   }
 
-  // Кнопка ← (выход из теста)
-  async function handleExit() {
-    await saveSkippedOnExit();
-    navigate("/ege");
-  }
+  async function handleExit() { await saveSkippedOnExit(); navigate("/ege"); }
 
   async function saveAnswer(task, given, correct) {
     const userId = tgUser?.id || dbUser?.id;
     if (!userId) return;
-
     await supabase.from("user_answers").insert({
-      user_id: userId,
-      task_id: task.source_id || String(task.id),
-      is_correct: correct,
-      user_answer: String(given),
-      correct_answer: task.answer,
-      topic: task.topic,
-      subtopic: task.subtopic,
-      line_number: task.line_number,
-      subject: task.subject,
+      user_id: userId, task_id: task.source_id || String(task.id),
+      is_correct: correct, user_answer: String(given), correct_answer: task.answer,
+      topic: task.topic, subtopic: task.subtopic, line_number: task.line_number, subject: task.subject,
     });
-
     if (!correct) return;
-
     const xp = getXpForTask(task);
     const today = new Date().toISOString().split("T")[0];
-
-    const { data: fresh } = await supabase
-      .from("users")
+    const { data: fresh } = await supabase.from("users")
       .select("xp, tasks_today, tasks_today_date, total_tasks, streak, last_active")
-      .eq("id", userId)
-      .single();
-
+      .eq("id", userId).single();
     if (!fresh) return;
-
-    const lastDate = fresh.tasks_today_date
-      ? new Date(fresh.tasks_today_date).toISOString().split("T")[0]
-      : null;
-    const isNewDay = lastDate !== today;
+    const lastDate = fresh.tasks_today_date ? new Date(fresh.tasks_today_date).toISOString().split("T")[0] : null;
     const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
-
     let newStreak = fresh.streak || 0;
     if (lastDate === yesterday) newStreak += 1;
     else if (lastDate !== today) newStreak = 1;
-
-    await supabase
-      .from("users")
-      .update({
-        xp: (fresh.xp || 0) + xp,
-        total_tasks: (fresh.total_tasks || 0) + 1,
-        tasks_today: isNewDay ? 1 : (fresh.tasks_today || 0) + 1,
-        tasks_today_date: new Date().toISOString(),
-        streak: newStreak,
-        last_active: new Date().toISOString(),
-      })
-      .eq("id", userId);
-
-    setLastXp(xp);
-    setXpEarned(prev => prev + xp);
+    await supabase.from("users").update({
+      xp: (fresh.xp || 0) + xp, total_tasks: (fresh.total_tasks || 0) + 1,
+      tasks_today: lastDate !== today ? 1 : (fresh.tasks_today || 0) + 1,
+      tasks_today_date: new Date().toISOString(), streak: newStreak, last_active: new Date().toISOString(),
+    }).eq("id", userId);
+    setLastXp(xp); setXpEarned(prev => prev + xp);
   }
 
   function getOptions(task) {
@@ -313,11 +327,7 @@ export default function EgeTest({ t }) {
     if (/^\d{2,}$/.test(a) && task.question.includes("<table") && /[АБВ]/.test(plain)) return "match";
     if (/^\d{2,6}$/.test(a) && /последовательност/i.test(plain)) return "sequence";
     if (/^\d{2,4}$/.test(a) && isTableFill) return "sequence";
-    if (/^\d{2,4}$/.test(a) && opts) {
-      const digits = a.split("");
-      if (digits.length !== new Set(digits).size) return "sequence";
-      return "multiselect";
-    }
+    if (/^\d{2,4}$/.test(a) && opts) { const d = a.split(""); if (d.length !== new Set(d).size) return "sequence"; return "multiselect"; }
     if (opts) return "single";
     return "text";
   }
@@ -326,11 +336,9 @@ export default function EgeTest({ t }) {
     const text = task.question.replace(/<[^>]+>/g, " ");
     const free = text.match(/[А-Е]\)\s*[^\n]{3,}/g) || [];
     if (free.length >= 2) return free.map(m => ({ label: m[0], text: m.replace(/^[А-Е]\)\s*/, "").trim().slice(0, 120) }));
-    const rows = [];
-    const trRe = /<tr[^>]*>(.*?)<\/tr>/gis; let trM;
+    const rows = []; const trRe = /<tr[^>]*>(.*?)<\/tr>/gis; let trM;
     while ((trM = trRe.exec(task.question)) !== null) {
-      const rowHtml = trM[1];
-      if (/<th/i.test(rowHtml)) continue;
+      const rowHtml = trM[1]; if (/<th/i.test(rowHtml)) continue;
       const tdRe2 = /<td[^>]*>(.*?)<\/td>/gis; const cells = []; let tdM2;
       while ((tdM2 = tdRe2.exec(rowHtml)) !== null) cells.push(tdM2[1].replace(/<[^>]+>/g, "").trim());
       if (cells[0] && cells[0].length > 1) rows.push(cells[0]);
@@ -344,100 +352,82 @@ export default function EgeTest({ t }) {
     return Array.from({ length: d.length > 0 ? Math.max(...d) : 3 }, (_, i) => i + 1);
   }
 
-  function norm(a) {
-    return (a || "").trim().toLowerCase().replace(/[\s,.\-]/g, "");
-  }
+  function norm(a) { return (a || "").trim().toLowerCase().replace(/[\s,.\-]/g, ""); }
 
   function checkAnswer(override) {
     const task = tasks[current];
     const type = getTaskType(task);
     let given = "";
+    if (type === "multiselect") given = [...selectedMulti].sort().join("");
+    else if (type === "match") { const rows = getMatchRows(task); given = rows ? rows.map((_, i) => matchAnswers[i] || "0").join("") : norm(userAnswer); }
+    else given = norm(override || userAnswer);
 
-    if (type === "multiselect") {
-      given = [...selectedMulti].sort().join("");
-    } else if (type === "match") {
-      const rows = getMatchRows(task);
-      given = rows ? rows.map((_, i) => matchAnswers[i] || "0").join("") : norm(userAnswer);
-    } else {
-      given = norm(override || userAnswer);
-    }
-
-    const rawAnswer = task.answer || "";
     const allVariants = new Set();
-    rawAnswer.split(/\/|\|\||,\s*/).forEach(part => {
-      const v = part.trim().toLowerCase().replace(/[\s\-]/g, "");
-      if (v) allVariants.add(v);
-    });
+    (task.answer || "").split(/\/|\|\||,\s*/).forEach(part => { const v = part.trim().toLowerCase().replace(/[\s\-]/g, ""); if (v) allVariants.add(v); });
+    const correct = [...allVariants].some(v => v === given.trim().toLowerCase().replace(/[\s\-]/g, ""));
 
-    const normGiven = given.trim().toLowerCase().replace(/[\s\-]/g, "");
-    const correct = [...allVariants].some(v => v === normGiven);
-
-    // Если ответил правильно — убираем из списка пропущенных (уже не нужно в ошибки)
     if (correct) {
       const taskId = task.source_id || String(task.id);
-      setSkippedOnce(prev => {
-        const next = new Map(prev);
-        next.delete(taskId);
-        return next;
-      });
+      setSkippedOnce(prev => { const next = new Map(prev); next.delete(taskId); return next; });
+      setCardClass("correct et-correct-pulse");
+      setShowXpFloat(true);
+    } else {
+      setCardClass("wrong et-shake");
+      setTimeout(() => setCardClass("wrong"), 450);
     }
 
-    setIsCorrect(correct);
-    setAnswered(true);
-    setUserAnswer(given);
+    setIsCorrect(correct); setAnswered(true); setUserAnswer(given);
     setResults(prev => [...prev, { task, userAnswer: given, correct, skipped: false }]);
     saveAnswer(task, given, correct);
+  }
+
+  function animateToNext(callback) {
+    if (transitioning) return;
+    setTransitioning(true);
+    setTaskAnim("et-task-exit");
+    setTimeout(() => {
+      callback();
+      setCardClass(""); setTaskAnim("et-task-enter"); setTransitioning(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 210);
   }
 
   function skipTask() {
     const task = tasks[current];
     const taskId = task.source_id || String(task.id);
-
     if (skippedOnce.has(taskId)) {
-      // Второй пропуск → сразу в ошибки
       setResults(prev => [...prev, { task, userAnswer: "—", correct: false, skipped: true }]);
       saveAnswer(task, "пропущено", false);
-      // Убираем из skippedOnce — уже сохранено
-      setSkippedOnce(prev => {
-        const next = new Map(prev);
-        next.delete(taskId);
-        return next;
-      });
+      setSkippedOnce(prev => { const next = new Map(prev); next.delete(taskId); return next; });
       const newTasks = tasks.filter((_, i) => i !== current);
-      if (newTasks.length === 0 || current >= newTasks.length) {
-        setTasks(newTasks);
-        setFinished(true);
-        return;
-      }
-      setTasks(newTasks);
+      animateToNext(() => {
+        if (newTasks.length === 0 || current >= newTasks.length) { setTasks(newTasks); setFinished(true); return; }
+        setTasks(newTasks); setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
+        setAnswered(false); setIsCorrect(null); setShowSolution(false); setLastXp(0);
+      });
     } else {
-      // Первый пропуск → запоминаем task, перемещаем в конец
       setSkippedOnce(prev => new Map(prev).set(taskId, task));
-      const newTasks = [...tasks];
-      const [skipped] = newTasks.splice(current, 1);
-      newTasks.push(skipped);
-      setTasks(newTasks);
+      const newTasks = [...tasks]; const [sk] = newTasks.splice(current, 1); newTasks.push(sk);
+      animateToNext(() => {
+        setTasks(newTasks); setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
+        setAnswered(false); setIsCorrect(null); setShowSolution(false); setLastXp(0);
+      });
     }
-
-    setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
-    setAnswered(false); setIsCorrect(null); setShowSolution(false); setLastXp(0);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function nextTask() {
-    if (current + 1 >= tasks.length) { setFinished(true); return; }
-    setCurrent(c => c + 1);
-    setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
-    setAnswered(false); setIsCorrect(null); setShowSolution(false); setLastXp(0);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    animateToNext(() => {
+      if (current + 1 >= tasks.length) { setFinished(true); return; }
+      setCurrent(c => c + 1); setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
+      setAnswered(false); setIsCorrect(null); setShowSolution(false); setLastXp(0);
+    });
   }
 
   function restart() {
     setCurrent(0); setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
     setResults([]); setFinished(false); setAnswered(false); setIsCorrect(null);
-    setShowSolution(false); setXpEarned(0); setLastXp(0);
-    setSkippedOnce(new Map());
-    fetchTasks(); window.scrollTo({ top: 0 });
+    setShowSolution(false); setXpEarned(0); setLastXp(0); setSkippedOnce(new Map());
+    setCardClass(""); setTaskAnim("et-task-enter"); fetchTasks(); window.scrollTo({ top: 0 });
   }
 
   if (loading) return (
@@ -460,7 +450,7 @@ export default function EgeTest({ t }) {
     const pct = results.length > 0 ? Math.round((score / results.length) * 100) : 0;
     return (
       <div style={{ minHeight: "100vh", background: t.bg, color: t.text, paddingBottom: 100 }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 16px 0" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 16px 0" }} className="et-task-enter">
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <div style={{ fontSize: 48, marginBottom: 8 }}>{pct >= 80 ? "🏆" : pct >= 50 ? "💪" : "📚"}</div>
             <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>{score} / {results.length}</div>
@@ -469,66 +459,33 @@ export default function EgeTest({ t }) {
               {skippedCount > 0 && <span style={{ color: "#FF9500", marginLeft: 8 }}>· {skippedCount} пропущено</span>}
             </div>
             {xpEarned > 0 && (
-              <div style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                background: `${t.primary}22`, border: `1px solid ${t.primary}44`,
-                borderRadius: 999, padding: "6px 16px",
-                fontSize: 14, fontWeight: 700, color: t.primary, marginBottom: 12,
-              }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: `${t.primary}22`, border: `1px solid ${t.primary}44`, borderRadius: 999, padding: "6px 16px", fontSize: 14, fontWeight: 700, color: t.primary, marginBottom: 12 }}>
                 ⚡ +{xpEarned} XP заработано
               </div>
             )}
             <div style={{ height: 8, background: t.surfaceUp, borderRadius: 999, overflow: "hidden" }}>
-              <div style={{ height: "100%", background: `linear-gradient(90deg, ${t.primary}, ${t.primaryBright})`, borderRadius: 999, width: `${pct}%` }} />
+              <div style={{ height: "100%", background: `linear-gradient(90deg, ${t.primary}, ${t.primaryBright})`, borderRadius: 999, width: `${pct}%`, transition: "width 1s cubic-bezier(0.22,1,0.36,1)" }} />
             </div>
           </div>
-
           <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
             <button onClick={restart} style={{ flex: 1, background: `linear-gradient(135deg, ${t.primary}, ${t.primaryBright})`, color: "#fff", padding: 14, borderRadius: 999, fontSize: 15, fontWeight: 700, cursor: "pointer", border: "none", boxShadow: `0 4px 16px ${t.primaryGlow}` }}>Ещё раз</button>
             <button onClick={() => navigate("/ege")} style={{ flex: 1, background: t.surface, color: t.text, padding: 14, borderRadius: 999, fontSize: 15, fontWeight: 600, cursor: "pointer", border: `1px solid ${t.border}` }}>К заданиям</button>
           </div>
-
           {results.some(r => !r.correct) && (
-            <div style={{
-              background: `${t.primary}11`, border: `1px solid ${t.primary}33`,
-              borderRadius: 16, padding: "12px 16px", marginBottom: 16,
-              fontSize: 13, color: t.textMuted, textAlign: "center"
-            }}>
+            <div style={{ background: `${t.primary}11`, border: `1px solid ${t.primary}33`, borderRadius: 16, padding: "12px 16px", marginBottom: 16, fontSize: 13, color: t.textMuted, textAlign: "center" }}>
               💡 Неправильные и пропущенные добавлены в{" "}
-              <span onClick={() => navigate("/errors")} style={{ color: t.primary, fontWeight: 700, cursor: "pointer" }}>
-                Работу над ошибками
-              </span>
+              <span onClick={() => navigate("/errors")} style={{ color: t.primary, fontWeight: 700, cursor: "pointer" }}>Работу над ошибками</span>
             </div>
           )}
-
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {results.map((r, i) => (
-              <div key={i} style={{
-                borderRadius: 20, padding: 16,
-                border: `1px solid ${r.correct ? t.success : r.skipped ? "#FF9500" : t.error}`,
-                background: r.correct ? `${t.success}18` : r.skipped ? "#FF950018" : `${t.error}18`
-              }}>
-                <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 5 }}>
-                  {i + 1}. {r.task.topic}
-                  {r.skipped && <span style={{ color: "#FF9500", marginLeft: 6 }}>· пропущено</span>}
-                </div>
+              <div key={i} className="et-fade-in" style={{ animationDelay: `${i * 0.04}s`, borderRadius: 20, padding: 16, border: `1px solid ${r.correct ? t.success : r.skipped ? "#FF9500" : t.error}`, background: r.correct ? `${t.success}18` : r.skipped ? "#FF950018" : `${t.error}18` }}>
+                <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 5 }}>{i + 1}. {r.task.topic}{r.skipped && <span style={{ color: "#FF9500", marginLeft: 6 }}>· пропущено</span>}</div>
                 <div className="ege-question" style={{ fontSize: 13, marginBottom: 7 }} dangerouslySetInnerHTML={{ __html: r.task.question }} />
-                <div style={{ fontSize: 13 }}>
-                  <span style={{ color: t.textMuted }}>Твой: </span>
-                  <span style={{ color: r.correct ? t.success : r.skipped ? "#FF9500" : t.error }}>{r.userAnswer || "—"}</span>
-                </div>
-                {!r.correct && (
-                  <div style={{ fontSize: 13, marginTop: 3 }}>
-                    <span style={{ color: t.textMuted }}>Правильно: </span>
-                    <span style={{ color: t.success }}>{r.task.answer}</span>
-                  </div>
-                )}
+                <div style={{ fontSize: 13 }}><span style={{ color: t.textMuted }}>Твой: </span><span style={{ color: r.correct ? t.success : r.skipped ? "#FF9500" : t.error }}>{r.userAnswer || "—"}</span></div>
+                {!r.correct && <div style={{ fontSize: 13, marginTop: 3 }}><span style={{ color: t.textMuted }}>Правильно: </span><span style={{ color: t.success }}>{r.task.answer}</span></div>}
                 {r.correct && <div style={{ fontSize: 12, color: t.primary, marginTop: 4 }}>⚡ +{getXpForTask(r.task)} XP</div>}
-                {r.task.solution && (
-                  <div style={{ marginTop: 8, fontSize: 12, color: t.textMuted, background: t.surfaceUp, borderRadius: 12, padding: "7px 10px" }}>
-                    💡 {r.task.solution.replace(/!!$/, "").trim()}
-                  </div>
-                )}
+                {r.task.solution && <div style={{ marginTop: 8, fontSize: 12, color: t.textMuted, background: t.surfaceUp, borderRadius: 12, padding: "7px 10px" }}>💡 {r.task.solution.replace(/!!$/, "").trim()}</div>}
               </div>
             ))}
           </div>
@@ -552,10 +509,11 @@ export default function EgeTest({ t }) {
 
   return (
     <div style={{ minHeight: "100vh", background: t.bg, color: t.text }}>
+      {showXpFloat && <XpFloat xp={lastXp} onDone={() => setShowXpFloat(false)} />}
+
       <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 30, background: t.surface, borderBottom: `1px solid ${t.border}` }}>
         <div className="et-header-inner">
           <div className="et-header-row">
-            {/* ← при выходе сохраняем все пропущенные */}
             <button className="et-back" onClick={handleExit}>←</button>
             <span className="et-counter">{current + 1} / {tasks.length}</span>
             <span className="et-score">{results.filter(r => r.correct).length} ✓</span>
@@ -564,8 +522,8 @@ export default function EgeTest({ t }) {
         </div>
       </div>
 
-      <div className="et-wrap">
-        <div className="et-card">
+      <div className={`et-wrap ${taskAnim}`}>
+        <div className={`et-card ${cardClass}`}>
           <div className="et-tags">
             {task.subject && <span className="et-tag et-tag-subject">{task.subject}</span>}
             {task.topic && <span className="et-tag et-tag-topic">{task.topic}</span>}
@@ -577,7 +535,7 @@ export default function EgeTest({ t }) {
         </div>
 
         {!answered && (
-          <div className="et-answers">
+          <div className="et-answers et-fade-in">
             {type === "multiselect" && (<>
               <div className="et-hint">Выберите все правильные варианты</div>
               {options.map((opt, i) => {
@@ -585,20 +543,16 @@ export default function EgeTest({ t }) {
                 return (
                   <button key={i} className={`et-opt${sel ? " selected" : ""}`}
                     onClick={() => setSelectedMulti(p => sel ? p.filter(x => x !== n) : [...p, n])}>
-                    <span className="et-opt-num">{n}</span>
-                    <span className="et-opt-text">{opt}</span>
+                    <span className="et-opt-num">{n}</span><span className="et-opt-text">{opt}</span>
                   </button>
                 );
               })}
             </>)}
-
             {type === "single" && options.map((opt, i) => (
               <button key={i} className="et-opt" onClick={() => checkAnswer(opt)}>
-                <span className="et-opt-num et-opt-letter">{LABELS[i]}</span>
-                <span className="et-opt-text">{opt}</span>
+                <span className="et-opt-num et-opt-letter">{LABELS[i]}</span><span className="et-opt-text">{opt}</span>
               </button>
             ))}
-
             {type === "sequence" && (<>
               <div className="et-hint">Введите последовательность цифр, например: 534621</div>
               <input type="text" value={userAnswer} autoFocus className="et-input et-input-seq"
@@ -606,7 +560,6 @@ export default function EgeTest({ t }) {
                 onKeyDown={e => e.key === "Enter" && canSubmit && checkAnswer()}
                 placeholder="Введи цифры..." />
             </>)}
-
             {type === "match" && (() => {
               const rows = getMatchRows(task); const cols = getMatchCols(task);
               return rows
@@ -616,32 +569,22 @@ export default function EgeTest({ t }) {
                     onKeyDown={e => e.key === "Enter" && canSubmit && checkAnswer()}
                     placeholder="Введи цифры..." />;
             })()}
-
             {type === "text" && (
               <input type="text" value={userAnswer} autoFocus className="et-input et-input-text"
                 onChange={e => setUserAnswer(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && canSubmit && checkAnswer()}
                 placeholder="Введи ответ..." />
             )}
-
-            {type !== "single" && (
-              <button className="et-btn-check" onClick={() => checkAnswer()} disabled={!canSubmit}>Проверить</button>
-            )}
-
-            {isRetry ? (
-              <button className="et-btn-skip-final" onClick={skipTask}>
-                Пропустить → (добавить в ошибки)
-              </button>
-            ) : (
-              <button className="et-btn-skip" onClick={skipTask}>
-                Пропустить → (вернётся в конце)
-              </button>
-            )}
+            {type !== "single" && <button className="et-btn-check" onClick={() => checkAnswer()} disabled={!canSubmit}>Проверить</button>}
+            {isRetry
+              ? <button className="et-btn-skip-final" onClick={skipTask}>Пропустить → (добавить в ошибки)</button>
+              : <button className="et-btn-skip" onClick={skipTask}>Пропустить → (вернётся в конце)</button>
+            }
           </div>
         )}
 
         {answered && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }} className="et-result-in">
             <div className="et-result-box" style={{
               background: isCorrect ? `${t.success}25` : `${t.error}25`,
               border: `2px solid ${isCorrect ? t.success : t.error}`,
@@ -656,9 +599,7 @@ export default function EgeTest({ t }) {
               <button className="et-solution-btn" onClick={() => setShowSolution(!showSolution)}>
                 {showSolution ? "Скрыть решение ▲" : "Показать решение ▼"}
               </button>
-              {showSolution && (
-                <div className="et-solution">{task.solution.replace(/!!$/, "").trim()}</div>
-              )}
+              {showSolution && <div className="et-solution et-fade-in">{task.solution.replace(/!!$/, "").trim()}</div>}
             </>)}
             <button className="et-btn-next" onClick={nextTask}>
               {current + 1 >= tasks.length ? "Завершить тест" : "Следующее →"}
@@ -666,7 +607,6 @@ export default function EgeTest({ t }) {
           </div>
         )}
       </div>
-
       <EgeStyles t={t} />
     </div>
   );
