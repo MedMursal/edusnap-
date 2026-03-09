@@ -3,12 +3,21 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useUser } from "../App";
 
+const SUBJECT_EMOJI = {
+  "Биология": "🧬",
+  "Химия": "⚗️",
+  "Физика": "⚡",
+  "Математика": "📐",
+  "Русский язык": "📝",
+};
+
 export default function WorkOnErrors({ t }) {
   const navigate = useNavigate();
   const { tgUser, dbUser } = useUser();
   const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [groupBy, setGroupBy] = useState("topic"); // "topic" | "line"
+  const [groupBy, setGroupBy] = useState("topic");
+  const [activeSubject, setActiveSubject] = useState(null);
 
   useEffect(() => { if (tgUser?.id || dbUser?.id) fetchErrors(); }, [tgUser, dbUser]);
 
@@ -32,9 +41,16 @@ export default function WorkOnErrors({ t }) {
     setLoading(false);
   }
 
-  // Группировка ошибок
+  // Список предметов у которых есть ошибки
+  const subjects = [...new Set(errors.map(e => e.subject).filter(Boolean))].sort();
+
+  // Ошибки по активному предмету
+  const filteredErrors = activeSubject
+    ? errors.filter(e => e.subject === activeSubject)
+    : errors;
+
   const groups = {};
-  errors.forEach(e => {
+  filteredErrors.forEach(e => {
     const key = groupBy === "line"
       ? `Линия ${e.line_number || "?"}`
       : (e.topic || "Без темы");
@@ -42,8 +58,7 @@ export default function WorkOnErrors({ t }) {
     groups[key].push(e);
   });
 
-  // Уникальные task_id для персонализированного теста
-  const uniqueTaskIds = [...new Set(errors.map(e => e.task_id))];
+  const uniqueTaskIds = [...new Set(filteredErrors.map(e => e.task_id))];
 
   function startPersonalTest(taskIds) {
     navigate(`/ege/test?error_ids=${taskIds.join(",")}`);
@@ -69,7 +84,7 @@ export default function WorkOnErrors({ t }) {
           <button onClick={() => navigate("/profile")} style={{ background: t.surfaceUp, border: "none", color: t.textMuted, width: 36, height: 36, borderRadius: 999, fontSize: 17, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>←</button>
           <div>
             <div style={{ fontWeight: 700, fontSize: 16 }}>Работа над ошибками</div>
-            <div style={{ fontSize: 12, color: t.textMuted }}>{uniqueTaskIds.length} заданий с ошибками</div>
+            <div style={{ fontSize: 12, color: t.textMuted }}>{uniqueTaskIds.length} заданий · {activeSubject || "все предметы"}</div>
           </div>
         </div>
       </div>
@@ -84,7 +99,39 @@ export default function WorkOnErrors({ t }) {
           </div>
         ) : (<>
 
-          {/* Кнопка персонализированного теста */}
+          {/* Переключатель предметов */}
+          {subjects.length > 1 && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 16, overflowX: "auto", paddingBottom: 4 }}>
+              <button
+                onClick={() => setActiveSubject(null)}
+                style={{
+                  flexShrink: 0, padding: "8px 14px", borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  border: `2px solid ${!activeSubject ? t.primary : t.border}`,
+                  background: !activeSubject ? t.secondary : t.surface,
+                  color: !activeSubject ? t.primary : t.textMuted,
+                }}>
+                Все · {errors.length}
+              </button>
+              {subjects.map(s => {
+                const count = errors.filter(e => e.subject === s).length;
+                const emoji = SUBJECT_EMOJI[s] || "📚";
+                const active = activeSubject === s;
+                return (
+                  <button key={s} onClick={() => setActiveSubject(s)}
+                    style={{
+                      flexShrink: 0, padding: "8px 14px", borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                      border: `2px solid ${active ? t.primary : t.border}`,
+                      background: active ? t.secondary : t.surface,
+                      color: active ? t.primary : t.textMuted,
+                    }}>
+                    {emoji} {s} · {count}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Кнопка теста */}
           <button
             onClick={() => startPersonalTest(uniqueTaskIds.slice(0, 20))}
             style={{ width: "100%", background: `linear-gradient(135deg, ${t.primary}, ${t.primaryBright})`, color: "#fff", padding: 16, borderRadius: 16, fontSize: 15, fontWeight: 700, cursor: "pointer", border: "none", boxShadow: `0 4px 20px ${t.primaryGlow}`, marginBottom: 16 }}>
@@ -104,7 +151,7 @@ export default function WorkOnErrors({ t }) {
           {/* Группы ошибок */}
           {Object.entries(groups).sort((a, b) => b[1].length - a[1].length).map(([groupName, items]) => {
             const groupTaskIds = [...new Set(items.map(e => e.task_id))];
-            const errorPct = Math.round((items.length / errors.length) * 100);
+            const errorPct = Math.round((items.length / filteredErrors.length) * 100);
             return (
               <div key={groupName} style={{ background: t.surface, borderRadius: 16, padding: 14, marginBottom: 10, border: `1px solid ${t.border}` }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -118,7 +165,6 @@ export default function WorkOnErrors({ t }) {
                     Тренировать
                   </button>
                 </div>
-                {/* Прогресс-бар */}
                 <div style={{ height: 4, background: t.surfaceUp, borderRadius: 999, overflow: "hidden" }}>
                   <div style={{ height: "100%", background: t.error, borderRadius: 999, width: `${errorPct}%` }} />
                 </div>
