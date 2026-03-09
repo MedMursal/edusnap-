@@ -7,12 +7,6 @@ import { SplineScene } from "../components/ui/SplineScene"
 import SettingsModal from "../components/ui/SettingsModal"
 import { useUser } from "../App"
 
-// ─── УРОВНИ ─────────────────────────────────────────────────
-// Логика: первые уровни быстрые (крючок), дальше плавно сложнее
-// Среднее XP за задание ~12, значит:
-// Уровень 2 = ~4 задания  → сразу чувствуешь прогресс
-// Уровень 5 = ~35 заданий → уже вложился, не бросишь
-// Уровень 10 = ~200 заданий → топ-студент
 const LEVELS = [
   { level: 1,  xp: 0,    label: "Новичок" },
   { level: 2,  xp: 50,   label: "Ученик" },
@@ -29,24 +23,24 @@ const LEVELS = [
 function getLevelInfo(xp) {
   let current = LEVELS[0];
   let next = LEVELS[1];
-
   for (let i = 0; i < LEVELS.length; i++) {
-    if (xp >= LEVELS[i].xp) {
-      current = LEVELS[i];
-      next = LEVELS[i + 1] || null;
-    } else {
-      break;
-    }
+    if (xp >= LEVELS[i].xp) { current = LEVELS[i]; next = LEVELS[i + 1] || null; }
+    else break;
   }
-
-  const progress = next
-    ? Math.min(Math.round(((xp - current.xp) / (next.xp - current.xp)) * 100), 100)
-    : 100;
+  const progress = next ? Math.min(Math.round(((xp - current.xp) / (next.xp - current.xp)) * 100), 100) : 100;
   const toNext = next ? next.xp - xp : 0;
-
   return { level: current.level, label: current.label, progress, toNext, nextLevel: next };
 }
-// ─────────────────────────────────────────────────────────────
+
+const QUOTES = [
+  { top: "Каждое задание", bottom: "приближает к 100 баллам ⚡" },
+  { top: "Не сдавайся —", bottom: "ты уже лучше 90% 🔥" },
+  { top: "Знания —", bottom: "твоё главное оружие 🧠" },
+  { top: "Один шаг в день —", bottom: "это уже победа 🏆" },
+  { top: "ЕГЭ — это", bottom: "просто следующий уровень 🎯" },
+  { top: "Сегодня лучше", bottom: "чем вчера 💪" },
+  { top: "Фокус и практика —", bottom: "вот твой секрет 🌟" },
+];
 
 export default function Home({ t, theme, setTheme, mode, setMode }) {
   const [courses, setCourses] = useState([])
@@ -56,30 +50,18 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
   const navigate = useNavigate()
   const { tgUser, dbUser } = useUser()
 
-  // Грузим свежие данные при каждом открытии экрана
+  const quote = QUOTES[new Date().getDay() % QUOTES.length];
+
   useEffect(() => {
     const userId = tgUser?.id || dbUser?.id;
     if (!userId) return;
-
-    supabase
-      .from("users")
-      .select("xp, streak, total_tasks, first_name")
-      .eq("id", userId)
-      .single()
-      .then(({ data }) => {
-        if (data) setUserData(data);
-      });
+    supabase.from("users").select("xp, streak, total_tasks, first_name").eq("id", userId).single()
+      .then(({ data }) => { if (data) setUserData(data); });
   }, [tgUser?.id, dbUser?.id]);
 
   useEffect(() => {
-    supabase
-      .from("courses")
-      .select("*, lessons(count)")
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (!error) setCourses(data || [])
-        setLoading(false)
-      })
+    supabase.from("courses").select("*, lessons(count)").order("created_at", { ascending: false })
+      .then(({ data, error }) => { if (!error) setCourses(data || []); setLoading(false); })
   }, [])
 
   const xp = userData?.xp ?? dbUser?.xp ?? 0;
@@ -90,7 +72,7 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
   return (
     <div style={{ padding: "0 0 100px" }}>
 
-      {/* ── HERO ── */}
+      {/* HERO */}
       <div style={{
         position: "relative", height: 280, overflow: "hidden",
         borderRadius: "0 0 36px 36px",
@@ -128,12 +110,12 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
           }}
         >
           <p style={{ color: t.textMuted, fontSize: 11, fontWeight: 700, marginBottom: 4, letterSpacing: 1.2, textTransform: "uppercase" }}>
-            Добро пожаловать
+            {quote.top}
           </p>
           <h1 style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.2, color: t.text, marginBottom: 8 }}>
             {firstName ? `${firstName}! 👋` : "Привет! 👋"}
           </h1>
-          <p style={{ color: t.accent, fontSize: 13, fontWeight: 600 }}>Продолжай учиться</p>
+          <p style={{ color: t.accent, fontSize: 13, fontWeight: 600 }}>{quote.bottom}</p>
           {streak > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -169,7 +151,7 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
 
       <div style={{ padding: "20px 16px 0" }}>
 
-        {/* ── XP БЛОК ── */}
+        {/* XP БЛОК */}
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
           style={{
@@ -189,9 +171,7 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
               </span>
             </div>
             <span style={{ fontSize: 12, color: t.textMuted }}>
-              {nextLevel
-                ? `до «${nextLevel.label}»: ${toNext} XP`
-                : "🏆 Макс. уровень"}
+              {nextLevel ? `до «${nextLevel.label}»: ${toNext} XP` : "🏆 Макс. уровень"}
             </span>
           </div>
           <div style={{ background: t.surfaceUp, borderRadius: 999, height: 8 }}>
@@ -208,7 +188,7 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
           </div>
         </motion.div>
 
-        {/* ── ЕГЭ CTA ── */}
+        {/* ЕГЭ CTA */}
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
