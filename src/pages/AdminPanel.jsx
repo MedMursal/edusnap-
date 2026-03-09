@@ -46,10 +46,11 @@ function SearchTab() {
   async function handleSearch() {
     if (!query.trim()) return;
     setSearching(true); setNotFound(false); setResult(null); setForm(null); setSaved(false);
-    const q = query.trim();
-    const { data: byId } = await supabase.from("ege_tasks").select("*").ilike("id", `${q}%`).limit(1);
-    const { data: bySourceId } = await supabase.from("ege_tasks").select("*").ilike("source_id", `${q}%`).limit(1);
-    const data = byId?.length ? byId : bySourceId;setSearching(false);
+    const q = query.trim().toLowerCase();
+    const { data: bySourceId } = await supabase.from("ege_tasks").select("*").ilike("source_id", `%${q}%`).limit(1);
+    const { data: byId } = await supabase.from("ege_tasks").select("*").filter("id::text", "ilike", `${q}%`).limit(1);
+    const data = bySourceId?.length ? bySourceId : byId;
+    setSearching(false);
     if (!data || data.length === 0) { setNotFound(true); return; }
     const task = data[0];
     setResult(task);
