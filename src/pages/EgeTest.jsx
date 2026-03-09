@@ -3,13 +3,32 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useUser } from "../App";
 
-// XP в зависимости от сложности задания
+// ─── XP CONFIG ───────────────────────────────────────────────
+// Архитектура: у каждого предмета своя таблица XP по линиям.
+// При добавлении химии/физики — просто добавь новый ключ.
+const XP_CONFIG = {
+  биология: {
+    1: 10, 2: 10, 3: 10, 4: 10, 5: 10,
+    6: 20, 7: 20, 8: 20,
+    9: 10, 10: 10,
+    11: 20, 12: 20,
+    13: 10, 14: 10, 15: 10, 16: 10, 17: 10,
+    18: 10, 19: 10, 20: 10,
+    21: 20,
+  },
+  // химия: { 1: 10, 2: 15, ... },
+  // физика: { 1: 10, 2: 15, ... },
+};
+
+const DEFAULT_XP = 10; // если линия не найдена
+
 function getXpForTask(task) {
-  const d = (task.difficulty || "").toString().toLowerCase().trim();
-  if (d.includes("сложн") || d.includes("hard") || d === "3") return 30;
-  if (d.includes("средн") || d.includes("medium") || d === "2") return 15;
-  return 10; // лёгкое / пусто / easy / 1
+  const subject = (task.subject || "биология").toLowerCase().trim();
+  const line = parseInt(task.line_number);
+  const table = XP_CONFIG[subject] || XP_CONFIG["биология"];
+  return table[line] ?? DEFAULT_XP;
 }
+// ─────────────────────────────────────────────────────────────
 
 function EgeStyles({ t }) {
   return (
@@ -38,6 +57,7 @@ function EgeStyles({ t }) {
       .et-tag-subject{background:${t.secondary};color:${t.primary};font-weight:600;}
       .et-tag-topic{background:${t.surfaceUp};color:${t.textMuted};}
       .et-tag-diff{background:${t.surfaceUp};color:${t.accent};}
+      .et-tag-xp{background:${t.secondary};color:${t.primary};font-weight:700;}
       .et-question{color:${t.text};font-size:13px;line-height:1.6;}
 
       .et-hint{font-size:11px;color:${t.textMuted};padding-left:2px;margin-bottom:4px;}
@@ -188,6 +208,7 @@ export default function EgeTest({ t }) {
     const userId = tgUser?.id || dbUser?.id;
     if (!userId) return;
 
+    // Сохраняем ответ
     await supabase.from("user_answers").insert({
       user_id: userId,
       task_id: task.source_id || String(task.id),
@@ -204,22 +225,34 @@ export default function EgeTest({ t }) {
 
     const xp = getXpForTask(task);
     const today = new Date().toISOString().split("T")[0];
-    const lastDate = dbUser?.tasks_today_date
-      ? new Date(dbUser.tasks_today_date).toISOString().split("T")[0]
+
+    // Читаем СВЕЖИЕ данные из БД — не из dbUser (он устаревший)
+    const { data: fresh } = await supabase
+      .from("users")
+      .select("xp, tasks_today, tasks_today_date, total_tasks, streak, last_active")
+      .eq("id", userId)
+      .single();
+
+    if (!fresh) return;
+
+    const lastDate = fresh.tasks_today_date
+      ? new Date(fresh.tasks_today_date).toISOString().split("T")[0]
       : null;
     const isNewDay = lastDate !== today;
     const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
 
-    let newStreak = dbUser?.streak || 0;
+    let newStreak = fresh.streak || 0;
     if (lastDate === yesterday) newStreak += 1;
     else if (lastDate !== today) newStreak = 1;
+    // если lastDate === today — streak не меняем
 
+    // Инкрементируем от СВЕЖЕГО значения
     await supabase
       .from("users")
       .update({
-        xp: (dbUser?.xp || 0) + xp,
-        total_tasks: (dbUser?.total_tasks || 0) + 1,
-        tasks_today: isNewDay ? 1 : (dbUser?.tasks_today || 0) + 1,
+        xp: (fresh.xp || 0) + xp,
+        total_tasks: (fresh.total_tasks || 0) + 1,
+        tasks_today: isNewDay ? 1 : (fresh.tasks_today || 0) + 1,
         tasks_today_date: new Date().toISOString(),
         streak: newStreak,
         last_active: new Date().toISOString(),
@@ -436,10 +469,8 @@ export default function EgeTest({ t }) {
             {task.subject && <span className="et-tag et-tag-subject">{task.subject}</span>}
             {task.topic && <span className="et-tag et-tag-topic">{task.topic}</span>}
             {task.subtopic && <span className="et-tag et-tag-topic">{task.subtopic}</span>}
-            {task.difficulty && (
-              <span className="et-tag et-tag-diff">
-                ★ {task.difficulty} · {getXpForTask(task)} XP
-              </span>
+            {task.line_number && (
+              <span className="et-tag et-tag-xp">⚡ {getXpForTask(task)} XP</span>
             )}
           </div>
           <div className="ege-question et-question" dangerouslySetInnerHTML={{ __html: task.question }} />
