@@ -81,26 +81,6 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
         </div>
       </motion.div>
 
-      {/* Статистика */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}
-      >
-        {[
-          { icon: Zap,      label: "XP",     value: xp },
-          { icon: Target,   label: "Решено", value: totalTasks },
-          { icon: Calendar, label: "Стрик",  value: `${streak}🔥` },
-        ].map(({ icon: Icon, label, value }) => (
-          <div key={label} style={{
-            background: t.surface, borderRadius: 20, padding: "14px 12px",
-            border: `1px solid ${t.border}`, textAlign: "center",
-          }}>
-            <Icon size={18} color={t.primary} style={{ marginBottom: 6 }} />
-            <p style={{ fontWeight: 800, fontSize: 18, color: t.text }}>{value}</p>
-            <p style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>{label}</p>
-          </div>
-        ))}
-      </motion.div>
 
       {/* Работа над ошибками */}
       <motion.button
