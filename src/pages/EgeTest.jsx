@@ -170,8 +170,9 @@ export default function EgeTest({ t }) {
   const lineParam = searchParams.get("line");
   const errorIdsParam = searchParams.get("error_ids");
 
-  const [tasks, setTasks] = useState([]);         // текущая очередь заданий
-  const [skippedOnce, setSkippedOnce] = useState(new Set()); // id заданий пропущенных 1 раз
+  const [tasks, setTasks] = useState([]);
+  // skippedOnce: Map taskId → task (чтобы при выходе сохранить в БД)
+  const [skippedOnce, setSkippedOnce] = useState(new Map());
   const [current, setCurrent] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
   const [selectedMulti, setSelectedMulti] = useState([]);
@@ -184,6 +185,10 @@ export default function EgeTest({ t }) {
   const [isCorrect, setIsCorrect] = useState(null);
   const [xpEarned, setXpEarned] = useState(0);
   const [lastXp, setLastXp] = useState(0);
+
+  // Реф для доступа к skippedOnce внутри handleExit без stale closure
+  const skippedOnceRef = useRef(skippedOnce);
+  useEffect(() => { skippedOnceRef.current = skippedOnce; }, [skippedOnce]);
 
   useEffect(() => { fetchTasks(); }, []);
 
@@ -201,6 +206,34 @@ export default function EgeTest({ t }) {
     const { data } = await q;
     setTasks((data || []).sort(() => Math.random() - 0.5).slice(0, 10));
     setLoading(false);
+  }
+
+  // Сохраняем все пропущенные задания как неправильные при выходе
+  async function saveSkippedOnExit() {
+    const skipped = skippedOnceRef.current;
+    if (skipped.size === 0) return;
+    const userId = tgUser?.id || dbUser?.id;
+    if (!userId) return;
+
+    const inserts = Array.from(skipped.values()).map(task => ({
+      user_id: userId,
+      task_id: task.source_id || String(task.id),
+      is_correct: false,
+      user_answer: "пропущено",
+      correct_answer: task.answer,
+      topic: task.topic,
+      subtopic: task.subtopic,
+      line_number: task.line_number,
+      subject: task.subject,
+    }));
+
+    await supabase.from("user_answers").insert(inserts);
+  }
+
+  // Кнопка ← (выход из теста)
+  async function handleExit() {
+    await saveSkippedOnExit();
+    navigate("/ege");
   }
 
   async function saveAnswer(task, given, correct) {
@@ -331,6 +364,16 @@ export default function EgeTest({ t }) {
     const normGiven = given.trim().toLowerCase().replace(/[\s\-]/g, "");
     const correct = [...allVariants].some(v => v === normGiven);
 
+    // Если ответил правильно — убираем из списка пропущенных (уже не нужно в ошибки)
+    if (correct) {
+      const taskId = task.source_id || String(task.id);
+      setSkippedOnce(prev => {
+        const next = new Map(prev);
+        next.delete(taskId);
+        return next;
+      });
+    }
+
     setIsCorrect(correct);
     setAnswered(true);
     setUserAnswer(given);
@@ -343,27 +386,31 @@ export default function EgeTest({ t }) {
     const taskId = task.source_id || String(task.id);
 
     if (skippedOnce.has(taskId)) {
-      // Второй пропуск → записываем как неправильный → в работу над ошибками
+      // Второй пропуск → сразу в ошибки
       setResults(prev => [...prev, { task, userAnswer: "—", correct: false, skipped: true }]);
       saveAnswer(task, "пропущено", false);
-      // Убираем из очереди и идём дальше
+      // Убираем из skippedOnce — уже сохранено
+      setSkippedOnce(prev => {
+        const next = new Map(prev);
+        next.delete(taskId);
+        return next;
+      });
       const newTasks = tasks.filter((_, i) => i !== current);
       if (newTasks.length === 0 || current >= newTasks.length) {
         setTasks(newTasks);
         setFinished(true);
-      } else {
-        setTasks(newTasks);
+        return;
       }
+      setTasks(newTasks);
     } else {
-      // Первый пропуск → перемещаем в конец очереди
-      setSkippedOnce(prev => new Set([...prev, taskId]));
+      // Первый пропуск → запоминаем task, перемещаем в конец
+      setSkippedOnce(prev => new Map(prev).set(taskId, task));
       const newTasks = [...tasks];
       const [skipped] = newTasks.splice(current, 1);
       newTasks.push(skipped);
       setTasks(newTasks);
     }
 
-    // Сбрасываем состояние
     setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
     setAnswered(false); setIsCorrect(null); setShowSolution(false); setLastXp(0);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -381,7 +428,7 @@ export default function EgeTest({ t }) {
     setCurrent(0); setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
     setResults([]); setFinished(false); setAnswered(false); setIsCorrect(null);
     setShowSolution(false); setXpEarned(0); setLastXp(0);
-    setSkippedOnce(new Set());
+    setSkippedOnce(new Map());
     fetchTasks(); window.scrollTo({ top: 0 });
   }
 
@@ -485,7 +532,7 @@ export default function EgeTest({ t }) {
 
   const task = tasks[current];
   const taskId = task.source_id || String(task.id);
-  const isRetry = skippedOnce.has(taskId); // задание уже пропускалось один раз
+  const isRetry = skippedOnce.has(taskId);
   const type = getTaskType(task);
   const options = getOptions(task);
   const progress = (current / tasks.length) * 100;
@@ -500,7 +547,8 @@ export default function EgeTest({ t }) {
       <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 30, background: t.surface, borderBottom: `1px solid ${t.border}` }}>
         <div className="et-header-inner">
           <div className="et-header-row">
-            <button className="et-back" onClick={() => navigate("/ege")}>←</button>
+            {/* ← при выходе сохраняем все пропущенные */}
+            <button className="et-back" onClick={handleExit}>←</button>
             <span className="et-counter">{current + 1} / {tasks.length}</span>
             <span className="et-score">{results.filter(r => r.correct).length} ✓</span>
           </div>
@@ -572,7 +620,6 @@ export default function EgeTest({ t }) {
               <button className="et-btn-check" onClick={() => checkAnswer()} disabled={!canSubmit}>Проверить</button>
             )}
 
-            {/* Кнопка пропуска — меняется в зависимости от того, первый пропуск или второй */}
             {isRetry ? (
               <button className="et-btn-skip-final" onClick={skipTask}>
                 Пропустить → (добавить в ошибки)
