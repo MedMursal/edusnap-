@@ -384,10 +384,13 @@ export default function EgeTest({ t }) {
     else if (type === "match") { const rows = getMatchRows(task); given = rows ? rows.map((_, i) => matchAnswers[i] || "0").join("") : norm(userAnswer); }
     else given = norm(override || userAnswer);
 
+    const normVal = s => s.trim().toLowerCase().replace(/[\s\-]/g, "").replace(/,/g, ".");
     const allVariants = new Set();
-    (task.answer || "").split(/\/|\|\||,\s*/).forEach(part => { const v = part.trim().toLowerCase().replace(/[\s\-]/g, ""); if (v) allVariants.add(v); });
-    const correct = [...allVariants].some(v => v === given.trim().toLowerCase().replace(/[\s\-]/g, ""));
-
+      (task.answer || "").split(/\/|\|\|/).forEach(part => {
+        const v = normVal(part);
+        if (v) allVariants.add(v);
+    });
+    const correct = [...allVariants].some(v => v === normVal(given));
     if (correct) {
       const taskId = task.source_id || String(task.id);
       setSkippedOnce(prev => { const next = new Map(prev); next.delete(taskId); return next; });
