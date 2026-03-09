@@ -3,6 +3,14 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useUser } from "../App";
 
+// XP в зависимости от сложности задания
+function getXpForTask(task) {
+  const d = (task.difficulty || "").toString().toLowerCase().trim();
+  if (d.includes("сложн") || d.includes("hard") || d === "3") return 30;
+  if (d.includes("средн") || d.includes("medium") || d === "2") return 15;
+  return 10; // лёгкое / пусто / easy / 1
+}
+
 function EgeStyles({ t }) {
   return (
     <style>{`
@@ -142,7 +150,7 @@ export default function EgeTest({ t }) {
   const topicParam = searchParams.get("topic");
   const subtopicParam = searchParams.get("subtopic");
   const lineParam = searchParams.get("line");
-  const errorIdsParam = searchParams.get("error_ids"); // для теста по ошибкам
+  const errorIdsParam = searchParams.get("error_ids");
   const [tasks, setTasks] = useState([]);
   const [current, setCurrent] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
@@ -154,13 +162,14 @@ export default function EgeTest({ t }) {
   const [showSolution, setShowSolution] = useState(false);
   const [answered, setAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(null);
+  const [xpEarned, setXpEarned] = useState(0);
+  const [lastXp, setLastXp] = useState(0);
 
   useEffect(() => { fetchTasks(); }, []);
 
   async function fetchTasks() {
     setLoading(true);
     let q = supabase.from("ege_tasks").select("*");
-
     if (errorIdsParam) {
       const ids = errorIdsParam.split(",");
       q = q.in("source_id", ids);
@@ -170,7 +179,6 @@ export default function EgeTest({ t }) {
       if (subtopicParam) q = q.eq("subtopic", subtopicParam);
       if (lineParam) q = q.eq("line_number", parseInt(lineParam));
     }
-
     const { data } = await q;
     setTasks((data || []).sort(() => Math.random() - 0.5).slice(0, 10));
     setLoading(false);
@@ -179,6 +187,7 @@ export default function EgeTest({ t }) {
   async function saveAnswer(task, given, correct) {
     const userId = tgUser?.id || dbUser?.id;
     if (!userId) return;
+
     await supabase.from("user_answers").insert({
       user_id: userId,
       task_id: task.source_id || String(task.id),
@@ -190,6 +199,35 @@ export default function EgeTest({ t }) {
       line_number: task.line_number,
       subject: task.subject,
     });
+
+    if (!correct) return;
+
+    const xp = getXpForTask(task);
+    const today = new Date().toISOString().split("T")[0];
+    const lastDate = dbUser?.tasks_today_date
+      ? new Date(dbUser.tasks_today_date).toISOString().split("T")[0]
+      : null;
+    const isNewDay = lastDate !== today;
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+
+    let newStreak = dbUser?.streak || 0;
+    if (lastDate === yesterday) newStreak += 1;
+    else if (lastDate !== today) newStreak = 1;
+
+    await supabase
+      .from("users")
+      .update({
+        xp: (dbUser?.xp || 0) + xp,
+        total_tasks: (dbUser?.total_tasks || 0) + 1,
+        tasks_today: isNewDay ? 1 : (dbUser?.tasks_today || 0) + 1,
+        tasks_today_date: new Date().toISOString(),
+        streak: newStreak,
+        last_active: new Date().toISOString(),
+      })
+      .eq("id", userId);
+
+    setLastXp(xp);
+    setXpEarned(prev => prev + xp);
   }
 
   function getOptions(task) {
@@ -261,8 +299,6 @@ export default function EgeTest({ t }) {
     }
 
     const rawAnswer = task.answer || "";
-
-    // Разбиваем по / || и по ", " (запятая с пробелом = отдельные варианты)
     const allVariants = new Set();
     rawAnswer.split(/\/|\|\||,\s*/).forEach(part => {
       const v = part.trim().toLowerCase().replace(/[\s\-]/g, "");
@@ -283,13 +319,14 @@ export default function EgeTest({ t }) {
     if (current + 1 >= tasks.length) { setFinished(true); return; }
     setCurrent(c => c + 1);
     setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
-    setAnswered(false); setIsCorrect(null); setShowSolution(false);
+    setAnswered(false); setIsCorrect(null); setShowSolution(false); setLastXp(0);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function restart() {
     setCurrent(0); setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
-    setResults([]); setFinished(false); setAnswered(false); setIsCorrect(null); setShowSolution(false);
+    setResults([]); setFinished(false); setAnswered(false); setIsCorrect(null);
+    setShowSolution(false); setXpEarned(0); setLastXp(0);
     fetchTasks(); window.scrollTo({ top: 0 });
   }
 
@@ -316,7 +353,18 @@ export default function EgeTest({ t }) {
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <div style={{ fontSize: 48, marginBottom: 8 }}>{pct >= 80 ? "🏆" : pct >= 50 ? "💪" : "📚"}</div>
             <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>{score} / {results.length}</div>
-            <div style={{ color: t.textMuted, fontSize: 15, marginBottom: 12 }}>{pct}% правильных</div>
+            <div style={{ color: t.textMuted, fontSize: 15, marginBottom: 8 }}>{pct}% правильных</div>
+            {xpEarned > 0 && (
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                background: `${t.primary}22`, border: `1px solid ${t.primary}44`,
+                borderRadius: 999, padding: "6px 16px",
+                fontSize: 14, fontWeight: 700, color: t.primary,
+                marginBottom: 12,
+              }}>
+                ⚡ +{xpEarned} XP заработано
+              </div>
+            )}
             <div style={{ height: 8, background: t.surfaceUp, borderRadius: 999, overflow: "hidden" }}>
               <div style={{ height: "100%", background: `linear-gradient(90deg, ${t.primary}, ${t.primaryBright})`, borderRadius: 999, width: `${pct}%` }} />
             </div>
@@ -334,8 +382,22 @@ export default function EgeTest({ t }) {
                   <span style={{ color: t.textMuted }}>Твой: </span>
                   <span style={{ color: r.correct ? t.success : t.error }}>{r.userAnswer || "—"}</span>
                 </div>
-                {!r.correct && <div style={{ fontSize: 13, marginTop: 3 }}><span style={{ color: t.textMuted }}>Правильно: </span><span style={{ color: t.success }}>{r.task.answer}</span></div>}
-                {r.task.solution && <div style={{ marginTop: 8, fontSize: 12, color: t.textMuted, background: t.surfaceUp, borderRadius: 12, padding: "7px 10px" }}>💡 {r.task.solution}</div>}
+                {!r.correct && (
+                  <div style={{ fontSize: 13, marginTop: 3 }}>
+                    <span style={{ color: t.textMuted }}>Правильно: </span>
+                    <span style={{ color: t.success }}>{r.task.answer}</span>
+                  </div>
+                )}
+                {r.correct && (
+                  <div style={{ fontSize: 12, color: t.primary, marginTop: 4 }}>
+                    ⚡ +{getXpForTask(r.task)} XP
+                  </div>
+                )}
+                {r.task.solution && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: t.textMuted, background: t.surfaceUp, borderRadius: 12, padding: "7px 10px" }}>
+                    💡 {r.task.solution.replace(/!!$/, "").trim()}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -374,7 +436,11 @@ export default function EgeTest({ t }) {
             {task.subject && <span className="et-tag et-tag-subject">{task.subject}</span>}
             {task.topic && <span className="et-tag et-tag-topic">{task.topic}</span>}
             {task.subtopic && <span className="et-tag et-tag-topic">{task.subtopic}</span>}
-            {task.difficulty && <span className="et-tag et-tag-diff">★ {task.difficulty}</span>}
+            {task.difficulty && (
+              <span className="et-tag et-tag-diff">
+                ★ {task.difficulty} · {getXpForTask(task)} XP
+              </span>
+            )}
           </div>
           <div className="ege-question et-question" dangerouslySetInnerHTML={{ __html: task.question }} />
         </div>
@@ -441,13 +507,20 @@ export default function EgeTest({ t }) {
               border: `2px solid ${isCorrect ? t.success : t.error}`,
               color: isCorrect ? t.success : t.error,
             }}>
-              {isCorrect ? "✅ Правильно!" : <span>❌ Неверно. <span style={{ color: t.text }}>Ответ: {task.answer}</span></span>}
+              {isCorrect
+                ? <span>✅ Правильно! <span style={{ color: t.primary, fontSize: 12 }}>+{lastXp} XP ⚡</span></span>
+                : <span>❌ Неверно. <span style={{ color: t.text }}>Ответ: {task.answer}</span></span>
+              }
             </div>
             {task.solution && (<>
               <button className="et-solution-btn" onClick={() => setShowSolution(!showSolution)}>
                 {showSolution ? "Скрыть решение ▲" : "Показать решение ▼"}
               </button>
-              {showSolution && <div className="et-solution">{task.solution}</div>}
+              {showSolution && (
+                <div className="et-solution">
+                  {task.solution.replace(/!!$/, "").trim()}
+                </div>
+              )}
             </>)}
             <button className="et-btn-next" onClick={nextTask}>
               {current + 1 >= tasks.length ? "Завершить тест" : "Следующее →"}
