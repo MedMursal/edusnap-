@@ -7,23 +7,46 @@ import { SplineScene } from "../components/ui/SplineScene"
 import SettingsModal from "../components/ui/SettingsModal"
 import { useUser } from "../App"
 
-// XP нужен для перехода на следующий уровень
-const LEVEL_THRESHOLDS = [0, 100, 250, 500, 1000, 2000, 5000, 10000];
+// ─── УРОВНИ ─────────────────────────────────────────────────
+// Логика: первые уровни быстрые (крючок), дальше плавно сложнее
+// Среднее XP за задание ~12, значит:
+// Уровень 2 = ~4 задания  → сразу чувствуешь прогресс
+// Уровень 5 = ~35 заданий → уже вложился, не бросишь
+// Уровень 10 = ~200 заданий → топ-студент
+const LEVELS = [
+  { level: 1,  xp: 0,    label: "Новичок" },
+  { level: 2,  xp: 50,   label: "Ученик" },
+  { level: 3,  xp: 120,  label: "Знаток" },
+  { level: 4,  xp: 250,  label: "Практик" },
+  { level: 5,  xp: 450,  label: "Эксперт" },
+  { level: 6,  xp: 700,  label: "Мастер" },
+  { level: 7,  xp: 1000, label: "Профи" },
+  { level: 8,  xp: 1400, label: "Гений" },
+  { level: 9,  xp: 1900, label: "Легенда" },
+  { level: 10, xp: 2500, label: "ЕГЭ 100" },
+];
 
 function getLevelInfo(xp) {
-  let level = 1;
-  for (let i = 0; i < LEVEL_THRESHOLDS.length; i++) {
-    if (xp >= LEVEL_THRESHOLDS[i]) level = i + 1;
-    else break;
+  let current = LEVELS[0];
+  let next = LEVELS[1];
+
+  for (let i = 0; i < LEVELS.length; i++) {
+    if (xp >= LEVELS[i].xp) {
+      current = LEVELS[i];
+      next = LEVELS[i + 1] || null;
+    } else {
+      break;
+    }
   }
-  const currentLevelXp = LEVEL_THRESHOLDS[level - 1] || 0;
-  const nextLevelXp = LEVEL_THRESHOLDS[level] || LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
-  const progress = nextLevelXp > currentLevelXp
-    ? ((xp - currentLevelXp) / (nextLevelXp - currentLevelXp)) * 100
+
+  const progress = next
+    ? Math.min(Math.round(((xp - current.xp) / (next.xp - current.xp)) * 100), 100)
     : 100;
-  const toNext = nextLevelXp - xp;
-  return { level, progress: Math.min(Math.round(progress), 100), toNext, nextLevelXp };
+  const toNext = next ? next.xp - xp : 0;
+
+  return { level: current.level, label: current.label, progress, toNext, nextLevel: next };
 }
+// ─────────────────────────────────────────────────────────────
 
 export default function Home({ t, theme, setTheme, mode, setMode }) {
   const [courses, setCourses] = useState([])
@@ -33,7 +56,7 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
   const navigate = useNavigate()
   const { tgUser, dbUser } = useUser()
 
-  // Грузим актуальные данные пользователя при каждом открытии экрана
+  // Грузим свежие данные при каждом открытии экрана
   useEffect(() => {
     const userId = tgUser?.id || dbUser?.id;
     if (!userId) return;
@@ -59,10 +82,10 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
       })
   }, [])
 
-  const xp = userData?.xp || dbUser?.xp || 0;
-  const streak = userData?.streak || dbUser?.streak || 0;
+  const xp = userData?.xp ?? dbUser?.xp ?? 0;
+  const streak = userData?.streak ?? dbUser?.streak ?? 0;
   const firstName = userData?.first_name || tgUser?.first_name || dbUser?.first_name || "";
-  const { level, progress, toNext } = getLevelInfo(xp);
+  const { level, label, progress, toNext, nextLevel } = getLevelInfo(xp);
 
   return (
     <div style={{ padding: "0 0 100px" }}>
@@ -145,20 +168,35 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
       </div>
 
       <div style={{ padding: "20px 16px 0" }}>
-        {/* XP — реальные данные из БД */}
+
+        {/* ── XP БЛОК ── */}
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-          style={{ background: t.surface, borderRadius: 24, padding: 18, marginBottom: 20, border: `1px solid ${t.border}` }}
+          style={{
+            background: t.surface, borderRadius: 24, padding: 18,
+            marginBottom: 20, border: `1px solid ${t.border}`
+          }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ fontWeight: 700, fontSize: 14, color: t.text }}>⚡ {xp} XP · Уровень {level}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: t.text }}>⚡ {xp} XP</span>
+              <span style={{
+                background: `${t.primary}22`, color: t.primary,
+                fontSize: 10, fontWeight: 700, padding: "2px 8px",
+                borderRadius: 999, border: `1px solid ${t.primary}44`
+              }}>
+                {level} · {label}
+              </span>
+            </div>
             <span style={{ fontSize: 12, color: t.textMuted }}>
-              {toNext > 0 ? `до уровня ${level + 1}: ${toNext} XP` : "Макс. уровень 🏆"}
+              {nextLevel
+                ? `до «${nextLevel.label}»: ${toNext} XP`
+                : "🏆 Макс. уровень"}
             </span>
           </div>
           <div style={{ background: t.surfaceUp, borderRadius: 999, height: 8 }}>
             <motion.div
-              key={xp} // перезапускает анимацию при изменении XP
+              key={xp}
               initial={{ width: 0 }} animate={{ width: `${progress}%` }}
               transition={{ duration: 1.2, delay: 0.4, ease: "easeOut" }}
               style={{
@@ -170,7 +208,7 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
           </div>
         </motion.div>
 
-        {/* ЕГЭ CTA */}
+        {/* ── ЕГЭ CTA ── */}
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}

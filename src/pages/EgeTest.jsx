@@ -4,8 +4,6 @@ import { supabase } from "../supabase";
 import { useUser } from "../App";
 
 // ─── XP CONFIG ───────────────────────────────────────────────
-// Архитектура: у каждого предмета своя таблица XP по линиям.
-// При добавлении химии/физики — просто добавь новый ключ.
 const XP_CONFIG = {
   биология: {
     1: 10, 2: 10, 3: 10, 4: 10, 5: 10,
@@ -19,8 +17,7 @@ const XP_CONFIG = {
   // химия: { 1: 10, 2: 15, ... },
   // физика: { 1: 10, 2: 15, ... },
 };
-
-const DEFAULT_XP = 10; // если линия не найдена
+const DEFAULT_XP = 10;
 
 function getXpForTask(task) {
   const subject = (task.subject || "биология").toLowerCase().trim();
@@ -56,8 +53,8 @@ function EgeStyles({ t }) {
       .et-tag{font-size:11px;padding:3px 9px;border-radius:999px;}
       .et-tag-subject{background:${t.secondary};color:${t.primary};font-weight:600;}
       .et-tag-topic{background:${t.surfaceUp};color:${t.textMuted};}
-      .et-tag-diff{background:${t.surfaceUp};color:${t.accent};}
       .et-tag-xp{background:${t.secondary};color:${t.primary};font-weight:700;}
+      .et-tag-retry{background:#FF950022;color:#FF9500;font-weight:700;}
       .et-question{color:${t.text};font-size:13px;line-height:1.6;}
 
       .et-hint{font-size:11px;color:${t.textMuted};padding-left:2px;margin-bottom:4px;}
@@ -81,6 +78,7 @@ function EgeStyles({ t }) {
       .et-btn-check:disabled{background:${t.surfaceUp};opacity:0.5;cursor:not-allowed;box-shadow:none;}
       .et-btn-skip{width:100%;background:transparent;border:2px solid ${t.border};color:${t.textMuted};padding:11px;border-radius:999px;font-size:13px;cursor:pointer;transition:border-color 0.15s,color 0.15s;}
       .et-btn-skip:hover{border-color:${t.primary};color:${t.text};}
+      .et-btn-skip-final{width:100%;background:transparent;border:2px solid #FF9500;color:#FF9500;padding:11px;border-radius:999px;font-size:13px;cursor:pointer;}
       .et-btn-next{width:100%;background:linear-gradient(135deg,${t.primary},${t.primaryBright});color:#fff;padding:14px;border-radius:999px;font-size:14px;font-weight:700;cursor:pointer;border:none;box-shadow:0 4px 16px ${t.primaryGlow};}
 
       .et-result-box{border-radius:20px;padding:13px 16px;text-align:center;font-size:14px;font-weight:700;}
@@ -98,7 +96,7 @@ function EgeStyles({ t }) {
         .et-opt-text{font-size:12px;}
         .et-input-seq{font-size:18px;letter-spacing:4px;padding:10px 12px;}
         .et-btn-check,.et-btn-next{font-size:13px;padding:12px;}
-        .et-btn-skip{font-size:12px;padding:9px;}
+        .et-btn-skip,.et-btn-skip-final{font-size:12px;padding:9px;}
       }
     `}</style>
   );
@@ -171,7 +169,9 @@ export default function EgeTest({ t }) {
   const subtopicParam = searchParams.get("subtopic");
   const lineParam = searchParams.get("line");
   const errorIdsParam = searchParams.get("error_ids");
-  const [tasks, setTasks] = useState([]);
+
+  const [tasks, setTasks] = useState([]);         // текущая очередь заданий
+  const [skippedOnce, setSkippedOnce] = useState(new Set()); // id заданий пропущенных 1 раз
   const [current, setCurrent] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
   const [selectedMulti, setSelectedMulti] = useState([]);
@@ -191,8 +191,7 @@ export default function EgeTest({ t }) {
     setLoading(true);
     let q = supabase.from("ege_tasks").select("*");
     if (errorIdsParam) {
-      const ids = errorIdsParam.split(",");
-      q = q.in("source_id", ids);
+      q = q.in("source_id", errorIdsParam.split(","));
     } else {
       if (subjectParam) q = q.eq("subject", subjectParam);
       if (topicParam) q = q.eq("topic", topicParam);
@@ -208,7 +207,6 @@ export default function EgeTest({ t }) {
     const userId = tgUser?.id || dbUser?.id;
     if (!userId) return;
 
-    // Сохраняем ответ
     await supabase.from("user_answers").insert({
       user_id: userId,
       task_id: task.source_id || String(task.id),
@@ -226,7 +224,6 @@ export default function EgeTest({ t }) {
     const xp = getXpForTask(task);
     const today = new Date().toISOString().split("T")[0];
 
-    // Читаем СВЕЖИЕ данные из БД — не из dbUser (он устаревший)
     const { data: fresh } = await supabase
       .from("users")
       .select("xp, tasks_today, tasks_today_date, total_tasks, streak, last_active")
@@ -244,9 +241,7 @@ export default function EgeTest({ t }) {
     let newStreak = fresh.streak || 0;
     if (lastDate === yesterday) newStreak += 1;
     else if (lastDate !== today) newStreak = 1;
-    // если lastDate === today — streak не меняем
 
-    // Инкрементируем от СВЕЖЕГО значения
     await supabase
       .from("users")
       .update({
@@ -279,8 +274,7 @@ export default function EgeTest({ t }) {
     if (/^\d{2,4}$/.test(a) && isTableFill) return "sequence";
     if (/^\d{2,4}$/.test(a) && opts) {
       const digits = a.split("");
-      const hasRepeats = digits.length !== new Set(digits).size;
-      if (hasRepeats) return "sequence";
+      if (digits.length !== new Set(digits).size) return "sequence";
       return "multiselect";
     }
     if (opts) return "single";
@@ -322,11 +316,7 @@ export default function EgeTest({ t }) {
       given = [...selectedMulti].sort().join("");
     } else if (type === "match") {
       const rows = getMatchRows(task);
-      if (rows) {
-        given = rows.map((_, i) => matchAnswers[i] || "0").join("");
-      } else {
-        given = norm(userAnswer);
-      }
+      given = rows ? rows.map((_, i) => matchAnswers[i] || "0").join("") : norm(userAnswer);
     } else {
       given = norm(override || userAnswer);
     }
@@ -344,8 +334,39 @@ export default function EgeTest({ t }) {
     setIsCorrect(correct);
     setAnswered(true);
     setUserAnswer(given);
-    setResults(prev => [...prev, { task, userAnswer: given, correct }]);
+    setResults(prev => [...prev, { task, userAnswer: given, correct, skipped: false }]);
     saveAnswer(task, given, correct);
+  }
+
+  function skipTask() {
+    const task = tasks[current];
+    const taskId = task.source_id || String(task.id);
+
+    if (skippedOnce.has(taskId)) {
+      // Второй пропуск → записываем как неправильный → в работу над ошибками
+      setResults(prev => [...prev, { task, userAnswer: "—", correct: false, skipped: true }]);
+      saveAnswer(task, "пропущено", false);
+      // Убираем из очереди и идём дальше
+      const newTasks = tasks.filter((_, i) => i !== current);
+      if (newTasks.length === 0 || current >= newTasks.length) {
+        setTasks(newTasks);
+        setFinished(true);
+      } else {
+        setTasks(newTasks);
+      }
+    } else {
+      // Первый пропуск → перемещаем в конец очереди
+      setSkippedOnce(prev => new Set([...prev, taskId]));
+      const newTasks = [...tasks];
+      const [skipped] = newTasks.splice(current, 1);
+      newTasks.push(skipped);
+      setTasks(newTasks);
+    }
+
+    // Сбрасываем состояние
+    setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
+    setAnswered(false); setIsCorrect(null); setShowSolution(false); setLastXp(0);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function nextTask() {
@@ -360,6 +381,7 @@ export default function EgeTest({ t }) {
     setCurrent(0); setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({});
     setResults([]); setFinished(false); setAnswered(false); setIsCorrect(null);
     setShowSolution(false); setXpEarned(0); setLastXp(0);
+    setSkippedOnce(new Set());
     fetchTasks(); window.scrollTo({ top: 0 });
   }
 
@@ -369,7 +391,7 @@ export default function EgeTest({ t }) {
     </div>
   );
 
-  if (tasks.length === 0) return (
+  if (tasks.length === 0 && !finished) return (
     <div style={{ minHeight: "100vh", background: t.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
       <span style={{ color: t.text, fontSize: 18 }}>Нет заданий</span>
       <button onClick={() => navigate("/ege")} style={{ background: t.primary, color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 14, cursor: "pointer", border: "none" }}>Назад</button>
@@ -379,21 +401,24 @@ export default function EgeTest({ t }) {
 
   if (finished) {
     const score = results.filter(r => r.correct).length;
-    const pct = Math.round((score / results.length) * 100);
+    const skippedCount = results.filter(r => r.skipped).length;
+    const pct = results.length > 0 ? Math.round((score / results.length) * 100) : 0;
     return (
       <div style={{ minHeight: "100vh", background: t.bg, color: t.text, paddingBottom: 100 }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 16px 0" }}>
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <div style={{ fontSize: 48, marginBottom: 8 }}>{pct >= 80 ? "🏆" : pct >= 50 ? "💪" : "📚"}</div>
             <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>{score} / {results.length}</div>
-            <div style={{ color: t.textMuted, fontSize: 15, marginBottom: 8 }}>{pct}% правильных</div>
+            <div style={{ color: t.textMuted, fontSize: 15, marginBottom: 8 }}>
+              {pct}% правильных
+              {skippedCount > 0 && <span style={{ color: "#FF9500", marginLeft: 8 }}>· {skippedCount} пропущено</span>}
+            </div>
             {xpEarned > 0 && (
               <div style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
                 background: `${t.primary}22`, border: `1px solid ${t.primary}44`,
                 borderRadius: 999, padding: "6px 16px",
-                fontSize: 14, fontWeight: 700, color: t.primary,
-                marginBottom: 12,
+                fontSize: 14, fontWeight: 700, color: t.primary, marginBottom: 12,
               }}>
                 ⚡ +{xpEarned} XP заработано
               </div>
@@ -402,18 +427,40 @@ export default function EgeTest({ t }) {
               <div style={{ height: "100%", background: `linear-gradient(90deg, ${t.primary}, ${t.primaryBright})`, borderRadius: 999, width: `${pct}%` }} />
             </div>
           </div>
+
           <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
             <button onClick={restart} style={{ flex: 1, background: `linear-gradient(135deg, ${t.primary}, ${t.primaryBright})`, color: "#fff", padding: 14, borderRadius: 999, fontSize: 15, fontWeight: 700, cursor: "pointer", border: "none", boxShadow: `0 4px 16px ${t.primaryGlow}` }}>Ещё раз</button>
             <button onClick={() => navigate("/ege")} style={{ flex: 1, background: t.surface, color: t.text, padding: 14, borderRadius: 999, fontSize: 15, fontWeight: 600, cursor: "pointer", border: `1px solid ${t.border}` }}>К заданиям</button>
           </div>
+
+          {results.some(r => !r.correct) && (
+            <div style={{
+              background: `${t.primary}11`, border: `1px solid ${t.primary}33`,
+              borderRadius: 16, padding: "12px 16px", marginBottom: 16,
+              fontSize: 13, color: t.textMuted, textAlign: "center"
+            }}>
+              💡 Неправильные и пропущенные добавлены в{" "}
+              <span onClick={() => navigate("/errors")} style={{ color: t.primary, fontWeight: 700, cursor: "pointer" }}>
+                Работу над ошибками
+              </span>
+            </div>
+          )}
+
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {results.map((r, i) => (
-              <div key={i} style={{ borderRadius: 20, padding: 16, border: `1px solid ${r.correct ? t.success : t.error}`, background: r.correct ? `${t.success}18` : `${t.error}18` }}>
-                <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 5 }}>{i + 1}. {r.task.topic}</div>
+              <div key={i} style={{
+                borderRadius: 20, padding: 16,
+                border: `1px solid ${r.correct ? t.success : r.skipped ? "#FF9500" : t.error}`,
+                background: r.correct ? `${t.success}18` : r.skipped ? "#FF950018" : `${t.error}18`
+              }}>
+                <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 5 }}>
+                  {i + 1}. {r.task.topic}
+                  {r.skipped && <span style={{ color: "#FF9500", marginLeft: 6 }}>· пропущено</span>}
+                </div>
                 <div className="ege-question" style={{ fontSize: 13, marginBottom: 7 }} dangerouslySetInnerHTML={{ __html: r.task.question }} />
                 <div style={{ fontSize: 13 }}>
                   <span style={{ color: t.textMuted }}>Твой: </span>
-                  <span style={{ color: r.correct ? t.success : t.error }}>{r.userAnswer || "—"}</span>
+                  <span style={{ color: r.correct ? t.success : r.skipped ? "#FF9500" : t.error }}>{r.userAnswer || "—"}</span>
                 </div>
                 {!r.correct && (
                   <div style={{ fontSize: 13, marginTop: 3 }}>
@@ -421,11 +468,7 @@ export default function EgeTest({ t }) {
                     <span style={{ color: t.success }}>{r.task.answer}</span>
                   </div>
                 )}
-                {r.correct && (
-                  <div style={{ fontSize: 12, color: t.primary, marginTop: 4 }}>
-                    ⚡ +{getXpForTask(r.task)} XP
-                  </div>
-                )}
+                {r.correct && <div style={{ fontSize: 12, color: t.primary, marginTop: 4 }}>⚡ +{getXpForTask(r.task)} XP</div>}
                 {r.task.solution && (
                   <div style={{ marginTop: 8, fontSize: 12, color: t.textMuted, background: t.surfaceUp, borderRadius: 12, padding: "7px 10px" }}>
                     💡 {r.task.solution.replace(/!!$/, "").trim()}
@@ -441,6 +484,8 @@ export default function EgeTest({ t }) {
   }
 
   const task = tasks[current];
+  const taskId = task.source_id || String(task.id);
+  const isRetry = skippedOnce.has(taskId); // задание уже пропускалось один раз
   const type = getTaskType(task);
   const options = getOptions(task);
   const progress = (current / tasks.length) * 100;
@@ -469,9 +514,8 @@ export default function EgeTest({ t }) {
             {task.subject && <span className="et-tag et-tag-subject">{task.subject}</span>}
             {task.topic && <span className="et-tag et-tag-topic">{task.topic}</span>}
             {task.subtopic && <span className="et-tag et-tag-topic">{task.subtopic}</span>}
-            {task.line_number && (
-              <span className="et-tag et-tag-xp">⚡ {getXpForTask(task)} XP</span>
-            )}
+            {task.line_number && <span className="et-tag et-tag-xp">⚡ {getXpForTask(task)} XP</span>}
+            {isRetry && <span className="et-tag et-tag-retry">🔄 Повтор</span>}
           </div>
           <div className="ege-question et-question" dangerouslySetInnerHTML={{ __html: task.question }} />
         </div>
@@ -527,7 +571,17 @@ export default function EgeTest({ t }) {
             {type !== "single" && (
               <button className="et-btn-check" onClick={() => checkAnswer()} disabled={!canSubmit}>Проверить</button>
             )}
-            <button className="et-btn-skip" onClick={nextTask}>Пропустить →</button>
+
+            {/* Кнопка пропуска — меняется в зависимости от того, первый пропуск или второй */}
+            {isRetry ? (
+              <button className="et-btn-skip-final" onClick={skipTask}>
+                Пропустить → (добавить в ошибки)
+              </button>
+            ) : (
+              <button className="et-btn-skip" onClick={skipTask}>
+                Пропустить → (вернётся в конце)
+              </button>
+            )}
           </div>
         )}
 
@@ -548,9 +602,7 @@ export default function EgeTest({ t }) {
                 {showSolution ? "Скрыть решение ▲" : "Показать решение ▼"}
               </button>
               {showSolution && (
-                <div className="et-solution">
-                  {task.solution.replace(/!!$/, "").trim()}
-                </div>
+                <div className="et-solution">{task.solution.replace(/!!$/, "").trim()}</div>
               )}
             </>)}
             <button className="et-btn-next" onClick={nextTask}>
