@@ -225,6 +225,7 @@ export default function EgeTest({ t }) {
   const lineParam = searchParams.get("line");
   const errorIdsParam = searchParams.get("error_ids");
   const idsParam = searchParams.get("ids");
+  const srIdsParam = searchParams.get("sr_ids");
 
   const [tasks, setTasks] = useState([]);
   const [skippedOnce, setSkippedOnce] = useState(new Map());
@@ -254,12 +255,13 @@ export default function EgeTest({ t }) {
     setLoading(true);
     const userId = tgUser?.id || dbUser?.id;
     let solvedSourceIds = new Set();
-    if (userId && !errorIdsParam && !idsParam) {
+    if (userId && !errorIdsParam && !idsParam && !srIdsParam) {
       const { data: solved } = await supabase.from("user_answers").select("task_id").eq("user_id", userId).eq("is_correct", true);
       solvedSourceIds = new Set((solved || []).map(a => a.task_id));
     }
     let q = supabase.from("ege_tasks").select("*");
-    if (idsParam) { q = q.in("id", idsParam.split(",")); }
+    if (srIdsParam) { q = q.in("id", srIdsParam.split(",")); }
+    else if (idsParam) { q = q.in("id", idsParam.split(",")); }
     else if (errorIdsParam) { q = q.in("source_id", errorIdsParam.split(",")); }
     else {
       if (subjectParam) q = q.eq("subject", subjectParam);
@@ -271,7 +273,7 @@ export default function EgeTest({ t }) {
     const unsolved = (data || []).filter(t => !solvedSourceIds.has(t.source_id)).sort(() => Math.random() - 0.5);
     const solved = (data || []).filter(t => solvedSourceIds.has(t.source_id)).sort(() => Math.random() - 0.5);
     const sorted = [...unsolved, ...solved];
-    setTasks(idsParam ? sorted : sorted.slice(0, 10));
+    setTasks((idsParam || srIdsParam) ? sorted : sorted.slice(0, 10));
     setLoading(false);
   }
 
@@ -301,6 +303,32 @@ export default function EgeTest({ t }) {
     const userId = tgUser?.id || dbUser?.id;
     if (!userId) return;
     await supabase.from("user_answers").insert({ user_id: userId, task_id: task.source_id || String(task.id), is_correct: correct, user_answer: String(given), correct_answer: task.answer, topic: task.topic, subtopic: task.subtopic, line_number: task.line_number, subject: task.subject });
+
+    // Интервальное повторение
+    if (!correct) {
+      // Неправильный ответ — добавить/сбросить в SR
+      const nextReview = new Date(Date.now() + 86400000).toISOString(); // +1 день
+      await supabase.from("spaced_repetition").upsert({
+        user_id: userId, task_id: task.id,
+        next_review: nextReview, interval_days: 1, correct_streak: 0,
+      }, { onConflict: "user_id,task_id" });
+    } else if (srIdsParam) {
+      // Правильный ответ в SR тесте — обновить интервал
+      const { data: sr } = await supabase.from("spaced_repetition").select("*").eq("user_id", userId).eq("task_id", task.id).single();
+      if (sr) {
+        const newStreak = (sr.correct_streak || 0) + 1;
+        const intervals = [1, 3, 7, 14];
+        if (newStreak >= 3) {
+          // Выучено — удалить из SR
+          await supabase.from("spaced_repetition").delete().eq("user_id", userId).eq("task_id", task.id);
+        } else {
+          const days = intervals[newStreak] || 14;
+          const nextReview = new Date(Date.now() + days * 86400000).toISOString();
+          await supabase.from("spaced_repetition").update({ correct_streak: newStreak, interval_days: days, next_review: nextReview }).eq("user_id", userId).eq("task_id", task.id);
+        }
+      }
+    }
+
     if (!correct) return;
     const xp = getXpForTask(task);
     const today = new Date().toISOString().split("T")[0];

@@ -10,6 +10,7 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
   const { tgUser, dbUser, userLoading, isInTelegram } = useUser()
   const [showSettings, setShowSettings] = useState(false)
   const [userData, setUserData] = useState(null)
+  const [dueCount, setDueCount] = useState(0)
   const navigate = useNavigate()
 
   const displayName = tgUser
@@ -22,6 +23,11 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
     supabase.from("users").select("xp, streak, total_tasks")
       .eq("id", userId).single()
       .then(({ data }) => { if (data) setUserData(data); });
+    supabase.from("spaced_repetition")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .lte("next_review", new Date().toISOString())
+      .then(({ count }) => setDueCount(count || 0));
   }, [tgUser?.id, dbUser?.id]);
 
   const xp = userData?.xp ?? dbUser?.xp ?? 0;
@@ -81,31 +87,53 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
         </div>
       </motion.div>
 
-
       {/* Работа над ошибками */}
       <motion.button
-        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
         whileTap={{ scale: 0.97 }}
         onClick={() => navigate("/errors")}
         style={{
-          width: "100%", padding: "16px 20px", borderRadius: 20,
+          width: "100%", padding: "16px 20px", borderRadius: 20, marginBottom: 10,
           background: t.surface, border: `1px solid ${t.border}`,
           display: "flex", alignItems: "center", justifyContent: "space-between",
           cursor: "pointer", color: t.text,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 12,
-            background: `${t.error}22`,
-            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
-          }}>📝</div>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: `${t.error}22`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>📝</div>
           <div style={{ textAlign: "left" }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>Работа над ошибками</div>
             <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>Персонализированный тест</div>
           </div>
         </div>
         <span style={{ color: t.textMuted, fontSize: 18 }}>→</span>
+      </motion.button>
+
+      {/* Интервальное повторение */}
+      <motion.button
+        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+        whileTap={{ scale: 0.97 }}
+        onClick={() => navigate("/repeat")}
+        style={{
+          width: "100%", padding: "16px 20px", borderRadius: 20, marginBottom: 10,
+          background: t.surface, border: `1px solid ${dueCount > 0 ? t.primary : t.border}`,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          cursor: "pointer", color: t.text,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: `${t.primary}22`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🧠</div>
+          <div style={{ textAlign: "left" }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>Интервальное повторение</div>
+            <div style={{ fontSize: 12, color: dueCount > 0 ? t.primary : t.textMuted, marginTop: 2 }}>
+              {dueCount > 0 ? `${dueCount} заданий ждут повторения` : "Умный алгоритм повторения"}
+            </div>
+          </div>
+        </div>
+        {dueCount > 0 && (
+          <span style={{ background: t.primary, color: "#fff", borderRadius: 999, fontSize: 12, fontWeight: 700, padding: "3px 10px" }}>{dueCount}</span>
+        )}
+        {dueCount === 0 && <span style={{ color: t.textMuted, fontSize: 18 }}>→</span>}
       </motion.button>
 
       {showSettings && (
