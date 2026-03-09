@@ -63,6 +63,7 @@ export default function App() {
 
     setTgUser(user)
     const today = new Date().toISOString().split("T")[0]
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0]
     const { data: existing } = await supabase.from("users").select("*").eq("id", user.id).single()
 
     if (!existing) {
@@ -70,11 +71,38 @@ export default function App() {
         id: user.id, first_name: user.firstName, last_name: user.lastName,
         username: user.username, photo_url: user.photoUrl,
         tasks_today: 0, tasks_today_date: today,
+        streak: 1, last_active: today,
       }).select().single()
       setDbUser(data)
     } else {
-      const updates = { first_name: user.firstName, last_name: user.lastName, username: user.username, last_active: today }
-      if (existing.tasks_today_date !== today) { updates.tasks_today = 0; updates.tasks_today_date = today }
+      const updates: Record<string, any> = {
+        first_name: user.firstName,
+        last_name: user.lastName,
+        username: user.username,
+        last_active: today,
+      }
+
+      // Сброс счётчика заданий за день
+      if (existing.tasks_today_date !== today) {
+        updates.tasks_today = 0
+        updates.tasks_today_date = today
+      }
+
+      // Стрик: считаем по last_active
+      const lastActive = existing.last_active
+        ? String(existing.last_active).split("T")[0]
+        : null
+
+      if (lastActive === today) {
+        // Уже заходил сегодня — стрик не трогаем
+      } else if (lastActive === yesterday) {
+        // Зашёл на следующий день — увеличиваем
+        updates.streak = (existing.streak || 0) + 1
+      } else {
+        // Пропустил хотя бы один день — сброс
+        updates.streak = 1
+      }
+
       const { data } = await supabase.from("users").update(updates).eq("id", user.id).select().single()
       setDbUser(data)
     }
