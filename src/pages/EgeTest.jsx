@@ -224,6 +224,7 @@ export default function EgeTest({ t }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { tgUser, dbUser } = useUser();
+  const isAdmin = (tgUser?.id || dbUser?.id) === 5015547885;
   const subjectParam = searchParams.get("subject");
   const topicParam = searchParams.get("topic");
   const subtopicParam = searchParams.get("subtopic");
@@ -506,7 +507,7 @@ export default function EgeTest({ t }) {
                 <div style={{ fontSize: 13 }}><span style={{ color: t.textMuted }}>Твой: </span><span style={{ color: r.correct ? t.success : r.skipped ? "#FF9500" : t.error }}>{r.userAnswer || "—"}</span></div>
                 {!r.correct && <div style={{ fontSize: 13, marginTop: 3 }}><span style={{ color: t.textMuted }}>Правильно: </span><span style={{ color: t.success }}>{r.task.answer}</span></div>}
                 {r.correct && <div style={{ fontSize: 12, color: t.primary, marginTop: 4 }}>⚡ +{getXpForTask(r.task)} XP</div>}
-                {r.task.solution && <div style={{ marginTop: 8, fontSize: 12, color: t.textMuted, background: t.surfaceUp, borderRadius: 12, padding: "7px 10px" }}>💡 {r.task.solution.replace(/!!$/, "").trim()}</div>}
+                {r.task.solution && <div style={{ marginTop: 8, fontSize: 12, color: t.textMuted, background: t.surfaceUp, borderRadius: 12, padding: "7px 10px" }}>💡 {isAdmin ? r.task.solution : r.task.solution.replace(/!!$/, "").trim()}</div>}
               </div>
             ))}
           </div>
@@ -620,7 +621,7 @@ export default function EgeTest({ t }) {
               <button className="et-solution-btn" onClick={() => setShowSolution(!showSolution)}>
                 {showSolution ? "Скрыть решение ▲" : "Показать решение ▼"}
               </button>
-              {showSolution && <div className="et-solution et-fade-in">{task.solution.replace(/!!$/, "").trim()}</div>}
+              {showSolution && <div className="et-solution et-fade-in">{isAdmin ? task.solution : task.solution.replace(/!!$/, "").trim()}</div>}
             </>)}
             <button className="et-btn-next" onClick={nextTask}>
               {current + 1 >= tasks.length ? "Завершить тест" : "Следующее →"}
