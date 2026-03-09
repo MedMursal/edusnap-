@@ -283,7 +283,28 @@ export default function EgeTest({ t }) {
     );
   }
 
-  async function handleExit() { await saveSkippedOnExit(); navigate("/ege"); }
+  async function handleExit() {
+    await saveSkippedOnExit();
+    // Если вышел с неотвеченного задания — тоже в ошибки
+    if (!answered && tasks.length > 0 && !finished) {
+      const task = tasks[current];
+      const userId = tgUser?.id || dbUser?.id;
+      if (userId) {
+        await supabase.from("user_answers").insert({
+          user_id: userId,
+          task_id: task.source_id || String(task.id),
+          is_correct: false,
+          user_answer: "пропущено",
+          correct_answer: task.answer,
+          topic: task.topic,
+          subtopic: task.subtopic,
+          line_number: task.line_number,
+          subject: task.subject,
+        });
+      }
+    }
+    navigate("/ege");
+  }
 
   async function saveAnswer(task, given, correct) {
     const userId = tgUser?.id || dbUser?.id;
