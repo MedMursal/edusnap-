@@ -54,22 +54,45 @@ function StatsTab() {
   }
 
   function exportCSV() {
-    const stats = users.map(u => {
+    const rows = users.map(u => {
       const ua = answers.filter(a => a.user_id === u.id);
       const total = ua.length;
       const correct = ua.filter(a => a.is_correct).length;
       const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
-      const errorsByTopic = {};
-      ua.filter(a => !a.is_correct).forEach(a => {
+
+      const topicMap = {};
+      ua.forEach(a => {
         const k = a.topic || "Без темы";
-        errorsByTopic[k] = (errorsByTopic[k] || 0) + 1;
+        if (!topicMap[k]) topicMap[k] = { correct: 0, total: 0 };
+        topicMap[k].total++;
+        if (a.is_correct) topicMap[k].correct++;
       });
-      const topErrors = Object.entries(errorsByTopic).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k}(${v})`).join("; ");
-      return { id: u.id, name: [u.first_name, u.last_name].filter(Boolean).join(" "), username: u.username || "", total_tasks: u.total_tasks || 0, answered: total, correct, accuracy: `${pct}%`, streak: u.streak || 0, top_errors: topErrors };
+
+      const top3 = Object.entries(topicMap)
+        .map(([k, v]) => ({ k, errors: v.total - v.correct }))
+        .sort((a, b) => b.errors - a.errors).slice(0, 3)
+        .map(({ k, errors }) => `${k}(${errors} ош.)`).join("; ");
+
+      const accuracy = Object.entries(topicMap)
+        .map(([k, v]) => `${k}: ${Math.round((v.correct / v.total) * 100)}%`).join("; ");
+
+      const lineMap = {};
+      ua.filter(a => !a.is_correct && a.line_number).forEach(a => {
+        lineMap[`Линия ${a.line_number}`] = (lineMap[`Линия ${a.line_number}`] || 0) + 1;
+      });
+      const weakLines = Object.entries(lineMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
+        .map(([k, v]) => `${k}(${v})`).join("; ");
+
+      const wrongTasks = ua.filter(a => !a.is_correct).slice(0, 5)
+        .map(a => `ID:${a.task_id} дал:${a.user_answer || "—"} верно:${a.correct_answer || "—"}`).join("; ");
+
+      const name = [u.first_name, u.last_name].filter(Boolean).join(" ") || "Без имени";
+      return [u.id, name, u.username || "", u.total_tasks || 0, total, correct, `${pct}%`, u.streak || 0, top3, accuracy, weakLines, wrongTasks];
     });
-    const headers = ["ID", "Имя", "Username", "Всего решено", "С проверкой", "Правильно", "Точность", "Стрик", "Слабые темы"];
-    const rows = stats.map(s => [s.id, s.name, s.username, s.total_tasks, s.answered, s.correct, s.accuracy, s.streak, s.top_errors]);
-    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(";")).join("\n");const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+
+    const headers = ["ID","Имя","Username","Всего решено","С проверкой","Правильно","Точность","Стрик","Топ-3 слабые темы","Точность по темам","Слабые линии ЕГЭ","Последние ошибки"];
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = `edusnap_stats_${new Date().toISOString().split("T")[0]}.csv`;
