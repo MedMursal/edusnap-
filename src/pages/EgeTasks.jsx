@@ -60,12 +60,21 @@ export default function EgeTasks({ t }) {
 
   async function fetchMeta() {
     setLoading(true);
-    // limit 10000 — иначе Supabase обрезает на 1000
-    const { data } = await supabase
-      .from("ege_tasks")
-      .select("subject, topic, line_number")
-      .limit(10000);
-    setMeta(data || []);
+    // Supabase лимит 1000 строк — грузим батчами
+    let all = [];
+    let from = 0;
+    const BATCH = 1000;
+    while (true) {
+      const { data } = await supabase
+        .from("ege_tasks")
+        .select("subject, topic, line_number")
+        .range(from, from + BATCH - 1);
+      if (!data || data.length === 0) break;
+      all = all.concat(data);
+      if (data.length < BATCH) break;
+      from += BATCH;
+    }
+    setMeta(all);
     setLoading(false);
   }
 
