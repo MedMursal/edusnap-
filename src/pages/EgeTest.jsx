@@ -456,7 +456,7 @@ export default function EgeTest({ t }) {
 
   const task = tasks[current];
   const taskId = task.source_id || String(task.id);
-  const shortId = task.id ? task.id.slice(0, 6) : "";
+  const shortId = task.id || "";
   const isRetry = skippedOnce.has(taskId);
   const type = getTaskType(task);
   const options = getOptions(task);
@@ -491,7 +491,7 @@ export default function EgeTest({ t }) {
             {task.subtopic && <span className="et-tag et-tag-topic">{task.subtopic}</span>}
             {task.line_number && <span className="et-tag et-tag-xp">⚡ {getXpForTask(task)} XP</span>}
             {isRetry && <span className="et-tag et-tag-retry">🔄 Повтор</span>}
-            <span style={{ marginLeft:"auto",fontSize:10,color:t.textDim,fontFamily:"monospace" }}>#{shortId}</span>
+            <span style={{ marginLeft:"auto",fontSize:10,color:t.textDim,fontFamily:"monospace",cursor:"pointer",userSelect:"all" }} title={task.id}>#{task.id ? task.id.slice(0,8) : ""}</span>
             {isAdmin && <button onClick={() => setEditTask(task)} style={{ fontSize:11,padding:"2px 8px",borderRadius:999,background:`${t.primary}22`,color:t.primary,border:`1px solid ${t.primary}44`,cursor:"pointer",fontWeight:700 }}>✏️</button>}
           </div>
           <div className="ege-question et-question" dangerouslySetInnerHTML={{ __html: task.question }} />
