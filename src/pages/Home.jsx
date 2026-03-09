@@ -5,12 +5,48 @@ import { Settings } from "lucide-react"
 import { supabase } from "../supabase"
 import { SplineScene } from "../components/ui/SplineScene"
 import SettingsModal from "../components/ui/SettingsModal"
+import { useUser } from "../App"
+
+// XP нужен для перехода на следующий уровень
+const LEVEL_THRESHOLDS = [0, 100, 250, 500, 1000, 2000, 5000, 10000];
+
+function getLevelInfo(xp) {
+  let level = 1;
+  for (let i = 0; i < LEVEL_THRESHOLDS.length; i++) {
+    if (xp >= LEVEL_THRESHOLDS[i]) level = i + 1;
+    else break;
+  }
+  const currentLevelXp = LEVEL_THRESHOLDS[level - 1] || 0;
+  const nextLevelXp = LEVEL_THRESHOLDS[level] || LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
+  const progress = nextLevelXp > currentLevelXp
+    ? ((xp - currentLevelXp) / (nextLevelXp - currentLevelXp)) * 100
+    : 100;
+  const toNext = nextLevelXp - xp;
+  return { level, progress: Math.min(Math.round(progress), 100), toNext, nextLevelXp };
+}
 
 export default function Home({ t, theme, setTheme, mode, setMode }) {
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
+  const [userData, setUserData] = useState(null)
   const navigate = useNavigate()
+  const { tgUser, dbUser } = useUser()
+
+  // Грузим актуальные данные пользователя при каждом открытии экрана
+  useEffect(() => {
+    const userId = tgUser?.id || dbUser?.id;
+    if (!userId) return;
+
+    supabase
+      .from("users")
+      .select("xp, streak, total_tasks, first_name")
+      .eq("id", userId)
+      .single()
+      .then(({ data }) => {
+        if (data) setUserData(data);
+      });
+  }, [tgUser?.id, dbUser?.id]);
 
   useEffect(() => {
     supabase
@@ -22,6 +58,11 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
         setLoading(false)
       })
   }, [])
+
+  const xp = userData?.xp || dbUser?.xp || 0;
+  const streak = userData?.streak || dbUser?.streak || 0;
+  const firstName = userData?.first_name || tgUser?.first_name || dbUser?.first_name || "";
+  const { level, progress, toNext } = getLevelInfo(xp);
 
   return (
     <div style={{ padding: "0 0 100px" }}>
@@ -67,24 +108,26 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
             Добро пожаловать
           </p>
           <h1 style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.2, color: t.text, marginBottom: 8 }}>
-            Привет! 👋
+            {firstName ? `${firstName}! 👋` : "Привет! 👋"}
           </h1>
           <p style={{ color: t.accent, fontSize: 13, fontWeight: 600 }}>Продолжай учиться</p>
-          <motion.div
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            style={{
-              marginTop: 16,
-              background: `linear-gradient(135deg, ${t.primary}, ${t.primaryBright})`,
-              color: "white", borderRadius: 999,
-              padding: "8px 16px", fontSize: 12, fontWeight: 700,
-              display: "inline-flex", alignItems: "center", gap: 6,
-              boxShadow: `0 4px 16px ${t.primaryGlow}`,
-              width: "fit-content",
-            }}
-          >
-            🔥 5 дней подряд
-          </motion.div>
+          {streak > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              style={{
+                marginTop: 16,
+                background: `linear-gradient(135deg, ${t.primary}, ${t.primaryBright})`,
+                color: "white", borderRadius: 999,
+                padding: "8px 16px", fontSize: 12, fontWeight: 700,
+                display: "inline-flex", alignItems: "center", gap: 6,
+                boxShadow: `0 4px 16px ${t.primaryGlow}`,
+                width: "fit-content",
+              }}
+            >
+              🔥 {streak} {streak === 1 ? "день подряд" : streak < 5 ? "дня подряд" : "дней подряд"}
+            </motion.div>
+          )}
         </motion.div>
 
         <div style={{ position: "absolute", right: -20, top: 0, width: "55%", height: "100%", zIndex: 5 }}>
@@ -102,20 +145,27 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
       </div>
 
       <div style={{ padding: "20px 16px 0" }}>
-        {/* XP */}
+        {/* XP — реальные данные из БД */}
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
           style={{ background: t.surface, borderRadius: 24, padding: 18, marginBottom: 20, border: `1px solid ${t.border}` }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ fontWeight: 700, fontSize: 14, color: t.text }}>⚡ 340 XP</span>
-            <span style={{ fontSize: 12, color: t.textMuted }}>до уровня 4: 160 XP</span>
+            <span style={{ fontWeight: 700, fontSize: 14, color: t.text }}>⚡ {xp} XP · Уровень {level}</span>
+            <span style={{ fontSize: 12, color: t.textMuted }}>
+              {toNext > 0 ? `до уровня ${level + 1}: ${toNext} XP` : "Макс. уровень 🏆"}
+            </span>
           </div>
           <div style={{ background: t.surfaceUp, borderRadius: 999, height: 8 }}>
             <motion.div
-              initial={{ width: 0 }} animate={{ width: "68%" }}
+              key={xp} // перезапускает анимацию при изменении XP
+              initial={{ width: 0 }} animate={{ width: `${progress}%` }}
               transition={{ duration: 1.2, delay: 0.4, ease: "easeOut" }}
-              style={{ background: `linear-gradient(90deg, ${t.primary}, ${t.primaryBright})`, height: 8, borderRadius: 999, boxShadow: `0 0 8px ${t.primaryGlow}` }}
+              style={{
+                background: `linear-gradient(90deg, ${t.primary}, ${t.primaryBright})`,
+                height: 8, borderRadius: 999,
+                boxShadow: `0 0 8px ${t.primaryGlow}`
+              }}
             />
           </div>
         </motion.div>
