@@ -48,10 +48,8 @@ function SearchTab() {
     setSearching(true); setNotFound(false); setResult(null); setForm(null); setSaved(false);
     const q = query.trim().toLowerCase();
     let data = null;
-    // Поиск по UUID через cast в text
-    const { data: byId } = await supabase.from("ege_tasks").select("*").filter("id::text", "ilike", `${q}%`).limit(1);
+    const { data: byId } = await supabase.rpc("search_task_by_prefix", { q });
     if (byId?.length) { data = byId; }
-    // Если не нашли — ищем по source_id
     if (!data) {
       const { data: bySourceId } = await supabase.from("ege_tasks").select("*").ilike("source_id", `%${q}%`).limit(1);
       data = bySourceId?.length ? bySourceId : null;
