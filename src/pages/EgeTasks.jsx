@@ -84,7 +84,6 @@ export default function EgeTasks({ t }) {
     setRandomLoading(true);
     const userId = tgUser?.id || dbUser?.id;
 
-    // Берём ID заданий которые уже решены правильно
     let solvedIds = [];
     if (userId) {
       const { data: solved } = await supabase
@@ -95,12 +94,13 @@ export default function EgeTasks({ t }) {
       solvedIds = (solved || []).map(a => a.task_id);
     }
 
-    // Берём все ID заданий
     let allIds = [];
     let from = 0;
     const BATCH = 1000;
     while (true) {
       let query = supabase.from("ege_tasks").select("id").range(from, from + BATCH - 1);
+      // Фильтр по предмету если выбран
+      if (subject) query = query.eq("subject", subject);
       if (solvedIds.length > 0) query = query.not("id", "in", `(${solvedIds.slice(0, 200).join(",")})`);
       const { data } = await query;
       if (!data || data.length === 0) break;
@@ -109,7 +109,6 @@ export default function EgeTasks({ t }) {
       from += BATCH;
     }
 
-    // Перемешиваем и берём 20
     const shuffled = allIds.sort(() => Math.random() - 0.5).slice(0, 20);
     setRandomLoading(false);
     navigate(`/ege/test?ids=${shuffled.join(",")}`);
@@ -168,37 +167,10 @@ export default function EgeTasks({ t }) {
       ) : (
         <div style={{ padding: "0 16px" }}>
 
-          {/* ── СЛУЧАЙНЫЕ ЗАДАНИЯ ── */}
-          {!subject && (
-            <button
-              onClick={startRandom}
-              disabled={randomLoading}
-              style={{
-                width: "100%", marginBottom: 20,
-                background: `linear-gradient(135deg, ${t.primary}, ${t.primaryBright})`,
-                border: "none", borderRadius: 20, padding: "18px 20px",
-                cursor: randomLoading ? "not-allowed" : "pointer",
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                boxShadow: `0 4px 24px ${t.primaryGlow}`,
-                opacity: randomLoading ? 0.7 : 1,
-              }}
-            >
-              <div style={{ textAlign: "left" }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>
-                  {randomLoading ? "⏳ Подбираем..." : "🎲 Случайные задания"}
-                </div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 3 }}>
-                  20 новых заданий · только те что ещё не решал
-                </div>
-              </div>
-              <span style={{ fontSize: 28 }}>→</span>
-            </button>
-          )}
-
-          {/* ── ПРЕДМЕТ — большие карточки ── */}
+          {/* ── ВЫБОР ПРЕДМЕТА ── */}
           {!subject && (
             <>
-              <p style={{ margin: "0 0 12px", fontSize: 11, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Или выбери предмет</p>
+              <p style={{ margin: "0 0 12px", fontSize: 11, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Выбери предмет</p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 {subjects.map(s => {
                   const info = SUBJECTS[s] || { emoji: "📚", color: t.primary, bg: t.surface };
@@ -229,12 +201,13 @@ export default function EgeTasks({ t }) {
           {/* ── После выбора предмета ── */}
           {subject && (
             <>
+              {/* Заголовок предмета */}
               <button onClick={() => handleSubject(subject)} style={{
                 width: "100%", display: "flex", alignItems: "center", gap: 14,
                 background: subjectInfo.bg,
                 border: `2px solid ${subjectInfo.color}55`,
                 borderRadius: 20, padding: "14px 18px",
-                cursor: "pointer", marginBottom: 20,
+                cursor: "pointer", marginBottom: 16,
                 boxShadow: `0 4px 20px ${subjectInfo.color}22`,
               }}>
                 <span style={{ fontSize: 36 }}>{subjectInfo.emoji}</span>
@@ -244,6 +217,36 @@ export default function EgeTasks({ t }) {
                 </div>
                 <span style={{ fontSize: 20, color: subjectInfo.color, opacity: 0.5 }}>✕</span>
               </button>
+
+              {/* 🎲 Случайные задания — внутри предмета */}
+              <button
+                onClick={startRandom}
+                disabled={randomLoading}
+                style={{
+                  width: "100%", marginBottom: 16,
+                  background: `linear-gradient(135deg, ${t.primary}, ${t.primaryBright})`,
+                  border: "none", borderRadius: 20, padding: "16px 20px",
+                  cursor: randomLoading ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  boxShadow: `0 4px 24px ${t.primaryGlow}`,
+                  opacity: randomLoading ? 0.7 : 1,
+                }}
+              >
+                <div style={{ textAlign: "left" }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>
+                    {randomLoading ? "⏳ Подбираем..." : "🎲 Случайные задания"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 3 }}>
+                    20 новых · только те что ещё не решал
+                  </div>
+                </div>
+                <span style={{ fontSize: 24, color: "#fff" }}>→</span>
+              </button>
+
+              {/* Разделитель */}
+              <p style={{ margin: "0 0 12px", fontSize: 11, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>
+                Или выбери тему / линию
+              </p>
 
               {topics.length > 0 && (
                 <Select
