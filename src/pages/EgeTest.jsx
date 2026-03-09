@@ -258,6 +258,18 @@ export default function EgeTest({ t }) {
 
   async function fetchTasks() {
     setLoading(true);
+    const userId = tgUser?.id || dbUser?.id;
+
+    let solvedSourceIds = new Set();
+    if (userId && !errorIdsParam && !idsParam) {
+      const { data: solved } = await supabase
+        .from("user_answers")
+        .select("task_id")
+        .eq("user_id", userId)
+        .eq("is_correct", true);
+      solvedSourceIds = new Set((solved || []).map(a => a.task_id));
+    }
+
     let q = supabase.from("ege_tasks").select("*");
     if (idsParam) {
       q = q.in("id", idsParam.split(","));
@@ -270,9 +282,13 @@ export default function EgeTest({ t }) {
       if (lineParam) q = q.eq("line_number", parseInt(lineParam));
     }
     const { data } = await q;
-    const shuffled = (data || []).sort(() => Math.random() - 0.5);
-    // Для обычного режима лимит 10, для случайного (idsParam) — без лимита
-    setTasks(idsParam ? shuffled : shuffled.slice(0, 10));
+
+    // Новые сначала, решённые в конце — внутри каждой группы перемешиваем
+    const unsolved = (data || []).filter(t => !solvedSourceIds.has(t.source_id)).sort(() => Math.random() - 0.5);
+    const solved = (data || []).filter(t => solvedSourceIds.has(t.source_id)).sort(() => Math.random() - 0.5);
+    const sorted = [...unsolved, ...solved];
+
+    setTasks(idsParam ? sorted : sorted.slice(0, 10));
     setLoading(false);
   }
 
