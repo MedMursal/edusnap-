@@ -60,7 +60,11 @@ export default function EgeTasks({ t }) {
 
   async function fetchMeta() {
     setLoading(true);
-    const { data } = await supabase.from("ege_tasks").select("subject, topic, line_number");
+    // limit 10000 — иначе Supabase обрезает на 1000
+    const { data } = await supabase
+      .from("ege_tasks")
+      .select("subject, topic, line_number")
+      .limit(10000);
     setMeta(data || []);
     setLoading(false);
   }
@@ -152,7 +156,6 @@ export default function EgeTasks({ t }) {
           {/* ── После выбора предмета — шапка + фильтры ── */}
           {subject && (
             <>
-              {/* Выбранный предмет — кликабельная шапка */}
               <button onClick={() => handleSubject(subject)} style={{
                 width: "100%", display: "flex", alignItems: "center", gap: 14,
                 background: subjectInfo.bg,
@@ -169,7 +172,6 @@ export default function EgeTasks({ t }) {
                 <span style={{ fontSize: 20, color: subjectInfo.color, opacity: 0.5 }}>✕</span>
               </button>
 
-              {/* Тема */}
               {topics.length > 0 && (
                 <Select
                   label="Тема (необязательно)"
@@ -184,7 +186,6 @@ export default function EgeTasks({ t }) {
                 />
               )}
 
-              {/* Линия */}
               {lines.length > 0 && (
                 <Select
                   label={topic ? `Линия · ${topic}` : "Линия (необязательно)"}
@@ -205,7 +206,6 @@ export default function EgeTasks({ t }) {
                 </p>
               )}
 
-              {/* Превью */}
               {canStart && (
                 <div style={{
                   marginTop: 8, background: t.surface,
@@ -233,7 +233,6 @@ export default function EgeTasks({ t }) {
         </div>
       )}
 
-      {/* КНОПКА СТАРТ */}
       {canStart && (
         <div style={{
           position: "fixed", bottom: 70, left: 0, right: 0,
