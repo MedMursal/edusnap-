@@ -75,7 +75,7 @@ export default function App() {
       }).select().single()
       setDbUser(data)
     } else {
-      const updates: Record<string, any> = {
+      const updates = {
         first_name: user.firstName,
         last_name: user.lastName,
         username: user.username,
@@ -94,7 +94,8 @@ export default function App() {
         : null
 
       if (lastActive === today) {
-        // Уже заходил сегодня — стрик не трогаем
+        // Уже заходил сегодня — если streak = 0, исправляем
+        if (!existing.streak) updates.streak = 1
       } else if (lastActive === yesterday) {
         // Зашёл на следующий день — увеличиваем
         updates.streak = (existing.streak || 0) + 1

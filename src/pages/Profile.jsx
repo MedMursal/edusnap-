@@ -1,5 +1,5 @@
 import { motion } from "framer-motion"
-import { Settings, Zap, Target, Calendar } from "lucide-react"
+import { Settings } from "lucide-react"
 import { useUser } from "../App"
 import SettingsModal from "../components/ui/SettingsModal"
 import { useState, useEffect } from "react"
@@ -33,6 +33,12 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
   const xp = userData?.xp ?? dbUser?.xp ?? 0;
   const totalTasks = userData?.total_tasks ?? dbUser?.total_tasks ?? 0;
   const streak = userData?.streak ?? dbUser?.streak ?? 0;
+
+  const stats = [
+    { emoji: "🔥", value: streak, label: streak === 1 ? "день подряд" : streak < 5 ? "дня подряд" : "дней подряд", color: "#FF6B4A" },
+    { emoji: "⚡", value: xp, label: "XP", color: "#FFB347" },
+    { emoji: "✅", value: totalTasks, label: "заданий", color: "#52C97A" },
+  ]
 
   return (
     <div style={{ padding: "24px 16px 100px" }}>
@@ -85,6 +91,32 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
             </p>
           )}
         </div>
+      </motion.div>
+
+      {/* Статистика */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+        style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
+          gap: 10, marginBottom: 16,
+        }}
+      >
+        {stats.map((s, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 + i * 0.05 }}
+            style={{
+              background: t.surface, borderRadius: 20,
+              border: `1px solid ${t.border}`,
+              padding: "14px 10px", textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: 22, marginBottom: 4 }}>{s.emoji}</div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontSize: 10, color: t.textMuted, marginTop: 3, fontWeight: 600 }}>{s.label}</div>
+          </motion.div>
+        ))}
       </motion.div>
 
       {/* Работа над ошибками */}
