@@ -89,7 +89,7 @@ function EgeStyles({ t }) {
       .ege-question td,.ege-question th{border:1px solid ${t.border};padding:5px 8px;color:${t.text};font-size:12px}
       .ege-question th{background:${t.surfaceUp};font-weight:600}
       .ege-question tr:nth-child(even) td{background:${t.bg}}
-      .ege-question img{max-width:100%;max-height:170px;width:auto;height:auto;border-radius:8px;margin:8px 0;display:block}
+      .ege-question img{max-width:100%;max-height:170px;width:auto;height:auto;border-radius:8px;margin:8px 0;display:block;filter:grayscale(100%)}.ege-question img{max-width:100%;max-height:170px;width:auto;height:auto;border-radius:8px;margin:8px 0;display:block}
       .ege-question p{margin-bottom:4px}
       .ege-question ol,.ege-question ul{padding-left:16px;margin:4px 0}
       .ege-question li{margin-bottom:3px}
