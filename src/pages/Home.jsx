@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Settings, Zap, Flame, ChevronRight, BookOpen, Brain, AlertCircle } from "lucide-react"
 import { supabase } from "../supabase"
-import { SplineScene } from "../components/ui/SplineScene"
+import FrogHero from "../components/FrogHero"
 import SettingsModal from "../components/ui/SettingsModal"
 import { useUser } from "../App"
 
@@ -303,12 +303,9 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
           {streak > 0 && <StreakFire streak={streak} t={t} />}
         </div>
 
-        {/* 3D сцена */}
-        <div style={{ position: "absolute", right: -10, top: 0, bottom: 0, width: "42%", zIndex: 5 }}>
-          <SplineScene
-            scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-            style={{ width: "100%", height: "100%" }}
-          />
+        {/* Лягушка */}
+        <div style={{ position: "absolute", right: -10, top: 0, bottom: 0, width: "46%", zIndex: 5 }}>
+          <FrogHero t={t} style={{ width: "100%", height: "100%" }} />
         </div>
       </div>
 
