@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useUser } from "../App";
+import FrogReaction from "../components/FrogReaction";
 
 const XP_CONFIG = {
   биология: { 1:10,2:10,3:10,4:10,5:10,6:20,7:20,8:20,9:10,10:10,11:20,12:20,13:10,14:10,15:10,16:10,17:10,18:10,19:10,20:10,21:20 },
@@ -13,6 +14,43 @@ function getXpForTask(task) {
   const line = parseInt(task.line_number);
   const table = XP_CONFIG[subject] || XP_CONFIG["биология"];
   return table[line] ?? DEFAULT_XP;
+}
+
+// ── Варианты реакций ──────────────────────────────────────────────────────────
+const CORRECT_VARIANTS = ["jump", "like"];
+const WRONG_VARIANTS   = ["angry", "cry", "eyeroll"];
+function pickVariant(correct) {
+  const arr = correct ? CORRECT_VARIANTS : WRONG_VARIANTS;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// ── Оверлей лягушки ───────────────────────────────────────────────────────────
+function FrogOverlay({ variant, t, leaving }) {
+  const label = {
+    jump:    "Правильно! 🎉",
+    like:    "Огонь! 👍",
+    angry:   "Ну и ну... 😤",
+    cry:     "Не расстраивайся 😢",
+    eyeroll: "Серьёзно?.. 🙄",
+  }[variant] || "";
+  const isGood = variant === "jump" || variant === "like";
+  return (
+    <div style={{
+      position: "fixed", bottom: 90, right: 16, zIndex: 50,
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+      pointerEvents: "none",
+      animation: leaving ? "frogOut 0.3s ease-in both" : "frogPop 0.55s cubic-bezier(0.34,1.56,0.64,1) both",
+    }}>
+      <FrogReaction t={t} variant={variant} size={100} />
+      <div style={{
+        background: isGood ? "#16a34aEE" : "#dc2626EE",
+        color: "#fff", fontSize: 11, fontWeight: 800,
+        padding: "4px 12px", borderRadius: 999,
+        fontFamily: "'Nunito', sans-serif",
+        whiteSpace: "nowrap", boxShadow: "0 2px 12px rgba(0,0,0,0.3)",
+      }}>{label}</div>
+    </div>
+  );
 }
 
 function EditModal({ task, onClose, onSaved, t }) {
@@ -79,6 +117,8 @@ function EgeStyles({ t }) {
       @keyframes correctPulse { 0%{box-shadow:0 0 0 0 ${t.success}55} 50%{box-shadow:0 0 0 14px ${t.success}00} 100%{box-shadow:0 0 0 0 ${t.success}00} }
       @keyframes xpPop { 0%{opacity:0;transform:translateX(-50%) translateY(0) scale(0.5)} 35%{opacity:1;transform:translateX(-50%) translateY(-20px) scale(1.25)} 65%{opacity:1;transform:translateX(-50%) translateY(-28px) scale(1)} 100%{opacity:0;transform:translateX(-50%) translateY(-44px) scale(0.85)} }
       @keyframes resultIn { from{opacity:0;transform:translateY(14px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+      @keyframes frogPop { 0%{opacity:0;transform:scale(0.4) translateY(30px)} 60%{transform:scale(1.15) translateY(-6px)} 80%{transform:scale(0.95) translateY(2px)} 100%{opacity:1;transform:scale(1) translateY(0)} }
+      @keyframes frogOut { from{opacity:1;transform:scale(1) translateY(0)} to{opacity:0;transform:scale(0.5) translateY(20px)} }
       .et-task-enter{animation:slideInRight 0.32s cubic-bezier(0.22,1,0.36,1) both}
       .et-task-exit{animation:slideOutLeft 0.2s ease-in both}
       .et-shake{animation:shake 0.42s ease both}
@@ -89,7 +129,7 @@ function EgeStyles({ t }) {
       .ege-question td,.ege-question th{border:1px solid ${t.border};padding:5px 8px;color:${t.text};font-size:12px}
       .ege-question th{background:${t.surfaceUp};font-weight:600}
       .ege-question tr:nth-child(even) td{background:${t.bg}}
-      .ege-question img{max-width:100%;max-height:170px;width:auto;height:auto;border-radius:8px;margin:8px 0;display:block;filter:grayscale(100%)}.ege-question img{max-width:100%;max-height:170px;width:auto;height:auto;border-radius:8px;margin:8px 0;display:block}
+      .ege-question img{max-width:100%;max-height:170px;width:auto;height:auto;border-radius:8px;margin:8px 0;display:block;filter:grayscale(100%)}
       .ege-question p{margin-bottom:4px}
       .ege-question ol,.ege-question ul{padding-left:16px;margin:4px 0}
       .ege-question li{margin-bottom:3px}
@@ -247,6 +287,27 @@ export default function EgeTest({ t }) {
   const [transitioning, setTransitioning] = useState(false);
   const [editTask, setEditTask] = useState(null);
 
+  // ── Лягушка ──
+  const [frogVariant, setFrogVariant] = useState(null);
+  const [frogLeaving, setFrogLeaving] = useState(false);
+  const frogTimer = useRef(null);
+
+  function showFrog(correct) {
+    if (frogTimer.current) clearTimeout(frogTimer.current);
+    setFrogLeaving(false);
+    setFrogVariant(pickVariant(correct));
+    frogTimer.current = setTimeout(() => {
+      setFrogLeaving(true);
+      setTimeout(() => setFrogVariant(null), 320);
+    }, 2200);
+  }
+
+  function hideFrog() {
+    if (frogTimer.current) clearTimeout(frogTimer.current);
+    setFrogVariant(null);
+    setFrogLeaving(false);
+  }
+
   const skippedOnceRef = useRef(skippedOnce);
   useEffect(() => { skippedOnceRef.current = skippedOnce; }, [skippedOnce]);
   useEffect(() => { fetchTasks(); }, []);
@@ -304,22 +365,18 @@ export default function EgeTest({ t }) {
     if (!userId) return;
     await supabase.from("user_answers").insert({ user_id: userId, task_id: task.source_id || String(task.id), is_correct: correct, user_answer: String(given), correct_answer: task.answer, topic: task.topic, subtopic: task.subtopic, line_number: task.line_number, subject: task.subject });
 
-    // Интервальное повторение
     if (!correct) {
-      // Неправильный ответ — добавить/сбросить в SR
-      const nextReview = new Date(Date.now() + 86400000).toISOString(); // +1 день
+      const nextReview = new Date(Date.now() + 86400000).toISOString();
       await supabase.from("spaced_repetition").upsert({
         user_id: userId, task_id: task.id,
         next_review: nextReview, interval_days: 1, correct_streak: 0,
       }, { onConflict: "user_id,task_id" });
     } else if (srIdsParam) {
-      // Правильный ответ в SR тесте — обновить интервал
       const { data: sr } = await supabase.from("spaced_repetition").select("*").eq("user_id", userId).eq("task_id", task.id).single();
       if (sr) {
         const newStreak = (sr.correct_streak || 0) + 1;
         const intervals = [1, 3, 7, 14];
         if (newStreak >= 3) {
-          // Выучено — удалить из SR
           await supabase.from("spaced_repetition").delete().eq("user_id", userId).eq("task_id", task.id);
         } else {
           const days = intervals[newStreak] || 14;
@@ -401,12 +458,14 @@ export default function EgeTest({ t }) {
     setIsCorrect(correct); setAnswered(true); setUserAnswer(given);
     setResults(prev => [...prev, { task, userAnswer: given, correct, skipped: false }]);
     saveAnswer(task, given, correct);
+    showFrog(correct); // ← лягушка!
   }
 
   function norm(a) { return (a||"").trim().toLowerCase().replace(/[\s,.\-]/g,""); }
 
   function animateToNext(callback) {
     if (transitioning) return;
+    hideFrog();
     setTransitioning(true); setTaskAnim("et-task-exit");
     setTimeout(() => { callback(); setCardClass(""); setTaskAnim("et-task-enter"); setTransitioning(false); window.scrollTo({ top: 0, behavior: "smooth" }); }, 210);
   }
@@ -438,6 +497,7 @@ export default function EgeTest({ t }) {
   }
 
   function restart() {
+    hideFrog();
     setCurrent(0); setUserAnswer(""); setSelectedMulti([]); setMatchAnswers({}); setResults([]); setFinished(false); setAnswered(false); setIsCorrect(null);
     setShowSolution(false); setXpEarned(0); setLastXp(0); setSkippedOnce(new Map()); setCardClass(""); setTaskAnim("et-task-enter"); fetchTasks(); window.scrollTo({ top: 0 });
   }
@@ -499,6 +559,9 @@ export default function EgeTest({ t }) {
     <div style={{ minHeight:"100vh",background:t.bg,color:t.text }}>
       {showXpFloat && <XpFloat xp={lastXp} onDone={() => setShowXpFloat(false)} />}
       {editTask && <EditModal task={editTask} t={t} onClose={() => setEditTask(null)} onSaved={(form) => { setTasks(prev => prev.map(tk => tk.id === editTask.id ? { ...tk, ...form } : tk)); }} />}
+
+      {/* ── Лягушка-реакция ── */}
+      {frogVariant && <FrogOverlay variant={frogVariant} t={t} leaving={frogLeaving} />}
 
       <div style={{ position:"fixed",top:0,left:0,right:0,zIndex:30,background:t.surface,borderBottom:`1px solid ${t.border}` }}>
         <div className="et-header-inner">
