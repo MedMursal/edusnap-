@@ -123,12 +123,10 @@ export default function EgeTasks({ t }) {
   const navigate = useNavigate();
   const { tgUser, dbUser } = useUser();
 
-  // ── НОВОЕ: проверка админа ──
   const isAdmin = (tgUser?.id || dbUser?.id) === 5015547885;
 
   const [meta, setMeta] = useState([]);
   const [loading, setLoading] = useState(true);
-  // ── НОВОЕ: множество скрытых предметов ──
   const [hiddenSubjects, setHiddenSubjects] = useState(new Set());
 
   const [subject, setSubject]   = useState(null);
@@ -142,7 +140,6 @@ export default function EgeTasks({ t }) {
   async function fetchMeta() {
     setLoading(true);
 
-    // ── НОВОЕ: загружаем конфиг видимости (только для обычных пользователей) ──
     if (!isAdmin) {
       const { data: cfg } = await supabase.from("subject_config").select("*");
       const hidden = new Set(
@@ -172,28 +169,27 @@ export default function EgeTasks({ t }) {
     setRandomLoading(true);
     const userId = tgUser?.id || dbUser?.id;
 
-    let solvedIds = [];
-    if (userId) {
-      const { data: solved } = await supabase
-        .from("user_answers")
-        .select("task_id")
-        .eq("user_id", userId)
-        .eq("is_correct", true);
-      solvedIds = (solved || []).map(a => a.task_id);
-    }
-
+    // ШАГ 1: тянем ВСЕ ID только по нужному предмету — фильтр subject всегда работает
     let allIds = [];
     let from = 0;
     const BATCH = 1000;
     while (true) {
       let query = supabase.from("ege_tasks").select("id").range(from, from + BATCH - 1);
-      if (subject)              query = query.eq("subject", subject);
-      if (solvedIds.length > 0) query = query.not("id", "in", `(${solvedIds.slice(0, 200).join(",")})`);
+      if (subject) query = query.eq("subject", subject); // строгий фильтр по предмету
       const { data } = await query;
       if (!data || data.length === 0) break;
       allIds = allIds.concat(data.map(x => x.id));
       if (data.length < BATCH) break;
       from += BATCH;
+    }
+
+    // ШАГ 2: исключаем решённые локально в JS — без конфликта с SQL фильтрами
+    if (userId) {
+      const { data: solved } = await supabase
+        .from("user_answers").select("task_id")
+        .eq("user_id", userId).eq("is_correct", true);
+      const solvedSet = new Set((solved || []).map(a => a.task_id));
+      allIds = allIds.filter(id => !solvedSet.has(id));
     }
 
     const shuffled = allIds.sort(() => Math.random() - 0.5).slice(0, 20);
@@ -203,7 +199,6 @@ export default function EgeTasks({ t }) {
 
   const totalCount = meta.length;
 
-  // ── НОВОЕ: фильтр предметов — скрытые видит только админ ──
   const subjects = [...new Set(meta.map(x => x.subject).filter(Boolean))].sort()
     .filter(s => isAdmin || !hiddenSubjects.has(s.toLowerCase()));
 
@@ -274,7 +269,6 @@ export default function EgeTasks({ t }) {
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Задания ЕГЭ</h1>
         <p style={{ margin: "5px 0 0", color: t.textMuted, fontSize: 14 }}>
           {totalCount} заданий в базе
-          {/* ── НОВОЕ: подсказка для админа ── */}
           {isAdmin && (
             <span style={{ marginLeft: 8, fontSize: 11, color: t.primary, fontWeight: 700 }}>
               👑 Режим админа — видишь все предметы
@@ -297,7 +291,6 @@ export default function EgeTasks({ t }) {
                 {subjects.map(s => {
                   const info  = SUBJECTS[s] || { emoji: "📚", color: t.primary, bg: t.surface };
                   const count = countTasks(s, null, null, null);
-                  // ── НОВОЕ: плашка СКРЫТ для админа ──
                   const isHiddenForUsers = isAdmin && hiddenSubjects.has(s.toLowerCase());
                   return (
                     <button key={s} onClick={() => handleSubject(s)} style={{
