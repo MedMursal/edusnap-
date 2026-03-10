@@ -391,7 +391,7 @@ export default function EgeTest({ t }) {
     else given = override !== undefined ? override : userAnswer;
     const normVal = s => s.trim().toLowerCase().replace(/[\s\-]/g,"").replace(/,/g,".");
     const allVariants = new Set();
-    (task.answer||"").split(/\/|\|\|/).forEach(part => { const v = normVal(part); if (v) allVariants.add(v); });
+    (task.answer||"").split(/\/|\|\||,/).forEach(part => { const v = normVal(part); if (v) allVariants.add(v); });
     const correct = [...allVariants].some(v => v === normVal(given));
     if (correct) {
       const taskId = task.source_id || String(task.id);
