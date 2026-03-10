@@ -14,6 +14,17 @@ const S = {
 const SUBJECTS = ["Биология", "Химия", "Физика", "Математика", "Русский язык"];
 const DIFFICULTIES = ["1", "2", "3", "4", "5"];
 
+const SUBJECT_META = {
+  "Биология":     { emoji: "🧬" },
+  "Химия":        { emoji: "⚗️" },
+  "Физика":       { emoji: "⚡" },
+  "Математика":   { emoji: "📐" },
+  "Русский язык": { emoji: "📝" },
+  "История":      { emoji: "📜" },
+  "Обществознание":{ emoji: "🏛️" },
+  "Информатика":  { emoji: "💻" },
+};
+
 function Field({ label, hint, children }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -33,6 +44,150 @@ const inputStyle = {
 };
 const textareaStyle = { ...inputStyle, minHeight: 90, resize: "vertical", lineHeight: 1.6 };
 
+// ─────────────────────────────────────────
+// Новая вкладка: управление видимостью предметов
+// ─────────────────────────────────────────
+function SubjectsTab() {
+  const [configs, setConfigs] = useState({});   // { "Биология": true, "Химия": false, ... }
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(null); // subject который сейчас сохраняется
+
+  useEffect(() => { fetchConfigs(); }, []);
+
+  async function fetchConfigs() {
+    const { data } = await supabase.from("subject_config").select("*");
+    // Дефолт — все предметы открыты
+    const map = {};
+    SUBJECTS.forEach(s => { map[s] = true; });
+    (data || []).forEach(row => { map[row.subject] = row.is_visible; });
+    setConfigs(map);
+    setLoading(false);
+  }
+
+  async function toggle(subject) {
+    const newVal = !configs[subject];
+    setSaving(subject);
+    // Оптимистичное обновление — UI меняется сразу, не ждём сервер
+    setConfigs(prev => ({ ...prev, [subject]: newVal }));
+
+    const { error } = await supabase
+      .from("subject_config")
+      .upsert(
+        { subject, is_visible: newVal, updated_at: new Date().toISOString() },
+        { onConflict: "subject" }
+      );
+
+    if (error) {
+      // Откат если сервер вернул ошибку
+      setConfigs(prev => ({ ...prev, [subject]: !newVal }));
+      alert("Ошибка: " + error.message);
+    }
+    setSaving(null);
+  }
+
+  if (loading) return (
+    <div style={{ color: S.textMuted, textAlign: "center", padding: 40 }}>Загрузка...</div>
+  );
+
+  const visibleCount = Object.values(configs).filter(Boolean).length;
+  const hiddenCount  = Object.values(configs).filter(v => !v).length;
+
+  return (
+    <div>
+      {/* Сводка */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+        <div style={{ background: "rgba(22,163,74,0.12)", border: "1px solid #16a34a44", borderRadius: 12, padding: "14px 16px", textAlign: "center" }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: S.greenText }}>{visibleCount}</div>
+          <div style={{ fontSize: 12, color: S.textMuted, marginTop: 4 }}>Открыто</div>
+        </div>
+        <div style={{ background: "rgba(220,38,38,0.12)", border: "1px solid #dc262644", borderRadius: 12, padding: "14px 16px", textAlign: "center" }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: S.redText }}>{hiddenCount}</div>
+          <div style={{ fontSize: 12, color: S.textMuted, marginTop: 4 }}>Скрыто</div>
+        </div>
+      </div>
+
+      {/* Список предметов */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {SUBJECTS.map(subject => {
+          const visible   = configs[subject] !== false; // дефолт true
+          const isSaving  = saving === subject;
+          const emoji     = SUBJECT_META[subject]?.emoji || "📚";
+
+          return (
+            <div key={subject} style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              background: S.surfaceUp,
+              border: `1.5px solid ${visible ? "#6366f144" : S.border}`,
+              borderRadius: 14,
+              padding: "14px 16px",
+              transition: "border-color 0.2s",
+            }}>
+              {/* Левая часть */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 28 }}>{emoji}</span>
+                <div>
+                  <div style={{
+                    fontSize: 14, fontWeight: 700,
+                    color: visible ? S.text : S.textMuted,
+                    textDecoration: visible ? "none" : "line-through",
+                  }}>
+                    {subject}
+                  </div>
+                  <div style={{ fontSize: 11, color: visible ? S.greenText : S.redText, marginTop: 2 }}>
+                    {visible ? "🟢 Виден пользователям" : "🔴 Скрыт от пользователей"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Тогл */}
+              <button
+                onClick={() => toggle(subject)}
+                disabled={isSaving}
+                title={visible ? "Скрыть предмет" : "Открыть предмет"}
+                style={{
+                  width: 54, height: 30,
+                  borderRadius: 999,
+                  border: "none",
+                  cursor: isSaving ? "wait" : "pointer",
+                  background: visible
+                    ? "linear-gradient(135deg, #6366f1, #818cf8)"
+                    : S.border,
+                  position: "relative",
+                  transition: "background 0.25s",
+                  flexShrink: 0,
+                  boxShadow: visible ? "0 2px 8px rgba(99,102,241,0.5)" : "none",
+                  opacity: isSaving ? 0.6 : 1,
+                }}
+              >
+                {/* Белый кружок — едет влево/вправо */}
+                <div style={{
+                  width: 22, height: 22,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  position: "absolute",
+                  top: 4,
+                  left: visible ? 28 : 4,
+                  transition: "left 0.25s cubic-bezier(0.34,1.56,0.64,1)",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                }} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ marginTop: 16, fontSize: 12, color: S.textDim, textAlign: "center", lineHeight: 1.6 }}>
+        Изменения применяются мгновенно.<br />
+        Скрытые предметы не отображаются у пользователей.<br />
+        Ты как админ видишь все предметы всегда.
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// Остальные вкладки без изменений
+// ─────────────────────────────────────────
 function SearchTab() {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState(null);
@@ -59,14 +214,10 @@ function SearchTab() {
     const task = data[0];
     setResult(task);
     setForm({
-      question: task.question || "",
-      answer: task.answer || "",
-      solution: task.solution || "",
-      topic: task.topic || "",
-      subtopic: task.subtopic || "",
-      options: task.options || "",
-      subject: task.subject || "Биология",
-      difficulty: String(task.difficulty || "2"),
+      question: task.question || "", answer: task.answer || "",
+      solution: task.solution || "", topic: task.topic || "",
+      subtopic: task.subtopic || "", options: task.options || "",
+      subject: task.subject || "Биология", difficulty: String(task.difficulty || "2"),
     });
   }
 
@@ -74,19 +225,14 @@ function SearchTab() {
     if (!result) return;
     setSaving(true); setError(""); setSaved(false);
     const { error: err } = await supabase.from("ege_tasks").update({
-      question: form.question.trim(),
-      answer: form.answer.trim(),
-      solution: form.solution.trim() || null,
-      topic: form.topic.trim() || null,
-      subtopic: form.subtopic.trim() || null,
-      options: form.options.trim() || null,
-      subject: form.subject || null,
-      difficulty: form.difficulty ? parseInt(form.difficulty) : null,
+      question: form.question.trim(), answer: form.answer.trim(),
+      solution: form.solution.trim() || null, topic: form.topic.trim() || null,
+      subtopic: form.subtopic.trim() || null, options: form.options.trim() || null,
+      subject: form.subject || null, difficulty: form.difficulty ? parseInt(form.difficulty) : null,
     }).eq("id", result.id);
     setSaving(false);
     if (err) { setError(err.message); return; }
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setSaved(true); setTimeout(() => setSaved(false), 3000);
   }
 
   async function handleDelete() {
@@ -101,59 +247,32 @@ function SearchTab() {
   return (
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <input
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && handleSearch()}
-          placeholder="Введи ID задания (первые 6 символов)..."
-          style={{ ...inputStyle, flex: 1 }}
-        />
-        <button onClick={handleSearch} disabled={searching} style={{ background: S.primary, color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none", flexShrink: 0 }}>
-          {searching ? "..." : "🔍"}
-        </button>
+        <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSearch()} placeholder="Введи ID задания (первые 6 символов)..." style={{ ...inputStyle, flex: 1 }} />
+        <button onClick={handleSearch} disabled={searching} style={{ background: S.primary, color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none", flexShrink: 0 }}>{searching ? "..." : "🔍"}</button>
       </div>
-
       {notFound && <div style={{ textAlign: "center", color: S.textMuted, fontSize: 14, padding: 20 }}>Задание не найдено</div>}
-
       {form && result && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ background: S.surfaceUp, borderRadius: 10, padding: "8px 12px", fontSize: 11, color: S.textMuted, fontFamily: "monospace" }}>
             ID: {result.id} · Линия: {result.line_number || "—"} · Создано: {new Date(result.created_at).toLocaleDateString("ru")}
           </div>
-
           <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 10 }}>
-            <Field label="Предмет">
-              <select value={form.subject} onChange={e => set("subject", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
-                {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </Field>
-            <Field label="Сложность">
-              <select value={form.difficulty} onChange={e => set("difficulty", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
-                {DIFFICULTIES.map(d => <option key={d} value={d}>★ {d}</option>)}
-              </select>
-            </Field>
+            <Field label="Предмет"><select value={form.subject} onChange={e => set("subject", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></Field>
+            <Field label="Сложность"><select value={form.difficulty} onChange={e => set("difficulty", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>{DIFFICULTIES.map(d => <option key={d} value={d}>★ {d}</option>)}</select></Field>
           </div>
-
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <Field label="Тема"><input value={form.topic} onChange={e => set("topic", e.target.value)} style={inputStyle} /></Field>
             <Field label="Подтема"><input value={form.subtopic} onChange={e => set("subtopic", e.target.value)} style={inputStyle} /></Field>
           </div>
-
           <Field label="Вопрос"><textarea value={form.question} onChange={e => set("question", e.target.value)} style={{ ...textareaStyle, minHeight: 120 }} /></Field>
           <Field label="Ответ"><input value={form.answer} onChange={e => set("answer", e.target.value)} style={inputStyle} /></Field>
           <Field label="Варианты (через ||)"><input value={form.options} onChange={e => set("options", e.target.value)} style={inputStyle} /></Field>
           <Field label="Объяснение"><textarea value={form.solution} onChange={e => set("solution", e.target.value)} style={textareaStyle} /></Field>
-
           {error && <div style={{ background: "rgba(127,29,29,0.3)", border: `1px solid ${S.red}`, borderRadius: 10, padding: "10px 14px", fontSize: 13, color: S.redText }}>⚠️ {error}</div>}
           {saved && <div style={{ background: "rgba(22,101,52,0.3)", border: `1px solid ${S.green}`, borderRadius: 10, padding: "10px 14px", fontSize: 13, color: S.greenText }}>✅ Сохранено!</div>}
-
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={handleSave} disabled={saving} style={{ flex: 1, background: saving ? S.surfaceUp : S.primary, color: saving ? S.textMuted : "#fff", padding: "13px", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", border: "none" }}>
-              {saving ? "Сохраняем..." : "💾 Сохранить"}
-            </button>
-            <button onClick={handleDelete} style={{ background: "rgba(127,29,29,0.3)", color: S.redText, padding: "13px 16px", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", border: `1px solid ${S.red}` }}>
-              🗑️
-            </button>
+            <button onClick={handleSave} disabled={saving} style={{ flex: 1, background: saving ? S.surfaceUp : S.primary, color: saving ? S.textMuted : "#fff", padding: "13px", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", border: "none" }}>{saving ? "Сохраняем..." : "💾 Сохранить"}</button>
+            <button onClick={handleDelete} style={{ background: "rgba(127,29,29,0.3)", color: S.redText, padding: "13px 16px", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", border: `1px solid ${S.red}` }}>🗑️</button>
           </div>
         </div>
       )}
@@ -175,16 +294,13 @@ function StatsTab() {
       supabase.from("users").select("*").order("total_tasks", { ascending: false }),
       supabase.from("user_answers").select("*").order("created_at", { ascending: false }),
     ]);
-    setUsers(u || []);
-    setAnswers(a || []);
-    setLoading(false);
+    setUsers(u || []); setAnswers(a || []); setLoading(false);
   }
 
   function exportCSV() {
     const rows = users.map(u => {
       const ua = answers.filter(a => a.user_id === u.id);
-      const total = ua.length;
-      const correct = ua.filter(a => a.is_correct).length;
+      const total = ua.length; const correct = ua.filter(a => a.is_correct).length;
       const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
       const topicMap = {};
       ua.forEach(a => { const k = a.topic || "Без темы"; if (!topicMap[k]) topicMap[k] = { correct: 0, total: 0 }; topicMap[k].total++; if (a.is_correct) topicMap[k].correct++; });
@@ -200,8 +316,7 @@ function StatsTab() {
     const headers = ["ID","Имя","Username","Всего решено","С проверкой","Правильно","Точность","Стрик","Топ-3 слабые темы","Точность по темам","Слабые линии ЕГЭ","Последние ошибки"];
     const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
     const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const url = URL.createObjectURL(blob); const a = document.createElement("a");
     a.href = url; a.download = `edusnap_stats_${new Date().toISOString().split("T")[0]}.csv`; a.click();
   }
 
@@ -282,6 +397,9 @@ function StatsTab() {
   );
 }
 
+// ─────────────────────────────────────────
+// Главный компонент
+// ─────────────────────────────────────────
 export default function AdminPanel() {
   const navigate = useNavigate();
   const { dbUser } = useUser();
@@ -308,9 +426,19 @@ export default function AdminPanel() {
     setTimeout(() => setSaved(false), 3000);
   }
 
+  // Вкладки — добавлена новая "subjects"
+  const TABS = [
+    ["search",   "🔍 Поиск"],
+    ["add",      "➕ Добавить"],
+    ["subjects", "🎛️ Предметы"],
+    ["stats",    "📊 Стата"],
+  ];
+
   return (
     <div style={{ minHeight: "100vh", background: S.bg, color: S.text, padding: "24px 16px 80px" }}>
       <div style={{ maxWidth: 700, margin: "0 auto" }}>
+
+        {/* Шапка */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={() => navigate(-1)} style={{ background: S.surfaceUp, border: "none", color: S.textMuted, width: 34, height: 34, borderRadius: 9, fontSize: 17, cursor: "pointer" }}>←</button>
           <div>
@@ -319,16 +447,24 @@ export default function AdminPanel() {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          {[["search", "🔍 Поиск"], ["add", "➕ Добавить"], ["stats", "📊 Статистика"]].map(([t, label]) => (
-            <button key={t} onClick={() => setActiveTab(t)} style={{ flex: 1, padding: "10px 0", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer", border: `2px solid ${activeTab === t ? S.primary : S.border}`, background: activeTab === t ? "rgba(99,102,241,0.15)" : S.surfaceUp, color: activeTab === t ? S.primary : S.textMuted }}>
+        {/* Вкладки — теперь в 2 строки на мобиле */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
+          {TABS.map(([t, label]) => (
+            <button key={t} onClick={() => setActiveTab(t)} style={{
+              padding: "10px 0", borderRadius: 10, fontSize: 12, fontWeight: 700,
+              cursor: "pointer",
+              border: `2px solid ${activeTab === t ? S.primary : S.border}`,
+              background: activeTab === t ? "rgba(99,102,241,0.15)" : S.surfaceUp,
+              color: activeTab === t ? S.primary : S.textMuted,
+            }}>
               {label}
             </button>
           ))}
         </div>
 
-        {activeTab === "search" && <SearchTab />}
-        {activeTab === "stats" && <StatsTab />}
+        {activeTab === "search"   && <SearchTab />}
+        {activeTab === "stats"    && <StatsTab />}
+        {activeTab === "subjects" && <SubjectsTab />}
 
         {activeTab === "add" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
