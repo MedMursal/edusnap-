@@ -17,7 +17,11 @@ const SUBJECTS = {
 function Select({ label, value, onChange, options, placeholder, t }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <label style={{ display: "block", fontSize: 11, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, marginBottom: 6 }}>
+      <label style={{
+        display: "block", fontSize: 11, color: t.textMuted,
+        textTransform: "uppercase", letterSpacing: "0.08em",
+        fontWeight: 700, marginBottom: 6,
+      }}>
         {label}
       </label>
       <div style={{ position: "relative" }}>
@@ -41,9 +45,77 @@ function Select({ label, value, onChange, options, placeholder, t }) {
           ))}
         </select>
         <span style={{
-          position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
-          color: value ? t.primary : t.textMuted, fontSize: 18, pointerEvents: "none",
+          position: "absolute", right: 14, top: "50%",
+          transform: "translateY(-50%)",
+          color: value ? t.primary : t.textMuted,
+          fontSize: 18, pointerEvents: "none",
         }}>⌄</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Чипы для подтем ── */
+function SubtopicChips({ subtopics, selected, onSelect, countFn, t, accentColor }) {
+  if (!subtopics.length) return null;
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label style={{
+        display: "block", fontSize: 11, color: t.textMuted,
+        textTransform: "uppercase", letterSpacing: "0.08em",
+        fontWeight: 700, marginBottom: 10,
+      }}>
+        Подтема{selected ? "" : " (необязательно)"}
+      </label>
+
+      {/* «Все подтемы» */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <button
+          onClick={() => onSelect(null)}
+          style={{
+            padding: "7px 14px",
+            borderRadius: 99,
+            border: `1.5px solid ${!selected ? accentColor : t.border}`,
+            background: !selected ? `${accentColor}22` : t.surface,
+            color: !selected ? accentColor : t.textMuted,
+            fontWeight: !selected ? 700 : 400,
+            fontSize: 13,
+            cursor: "pointer",
+            transition: "all 0.15s",
+            boxShadow: !selected ? `0 0 0 3px ${accentColor}18` : "none",
+          }}
+        >
+          Все ({countFn(null)})
+        </button>
+
+        {subtopics.map(st => {
+          const active = selected === st;
+          const count = countFn(st);
+          return (
+            <button
+              key={st}
+              onClick={() => onSelect(active ? null : st)}
+              style={{
+                padding: "7px 14px",
+                borderRadius: 99,
+                border: `1.5px solid ${active ? accentColor : t.border}`,
+                background: active ? `${accentColor}22` : t.surface,
+                color: active ? accentColor : t.text,
+                fontWeight: active ? 700 : 400,
+                fontSize: 13,
+                cursor: "pointer",
+                transition: "all 0.15s",
+                boxShadow: active ? `0 0 0 3px ${accentColor}18` : "none",
+                maxWidth: 220,
+                textAlign: "left",
+                lineHeight: "1.3",
+              }}
+            >
+              {st} <span style={{ opacity: 0.5, fontWeight: 400 }}>({count})</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -52,11 +124,14 @@ function Select({ label, value, onChange, options, placeholder, t }) {
 export default function EgeTasks({ t }) {
   const navigate = useNavigate();
   const { tgUser, dbUser } = useUser();
+
   const [meta, setMeta] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [subject, setSubject] = useState(null);
-  const [topic, setTopic] = useState(null);
-  const [line, setLine] = useState(null);
+
+  const [subject, setSubject]   = useState(null);
+  const [topic, setTopic]       = useState(null);
+  const [subtopic, setSubtopic] = useState(null);   // ← НОВОЕ
+  const [line, setLine]         = useState(null);
   const [randomLoading, setRandomLoading] = useState(false);
 
   useEffect(() => { fetchMeta(); }, []);
@@ -69,7 +144,7 @@ export default function EgeTasks({ t }) {
     while (true) {
       const { data } = await supabase
         .from("ege_tasks")
-        .select("subject, topic, line_number")
+        .select("subject, topic, subtopic, line_number")  // ← добавили subtopic
         .range(from, from + BATCH - 1);
       if (!data || data.length === 0) break;
       all = all.concat(data);
@@ -99,8 +174,7 @@ export default function EgeTasks({ t }) {
     const BATCH = 1000;
     while (true) {
       let query = supabase.from("ege_tasks").select("id").range(from, from + BATCH - 1);
-      // Фильтр по предмету если выбран
-      if (subject) query = query.eq("subject", subject);
+      if (subject)              query = query.eq("subject", subject);
       if (solvedIds.length > 0) query = query.not("id", "in", `(${solvedIds.slice(0, 200).join(",")})`);
       const { data } = await query;
       if (!data || data.length === 0) break;
@@ -121,38 +195,62 @@ export default function EgeTasks({ t }) {
     ? [...new Set(meta.filter(x => x.subject === subject).map(x => x.topic).filter(Boolean))].sort()
     : [];
 
+  // ── Подтемы: только для выбранного предмета + темы ──
+  const subtopics = (subject && topic)
+    ? [...new Set(
+        meta
+          .filter(x => x.subject === subject && x.topic === topic && x.subtopic)
+          .map(x => x.subtopic)
+      )].sort()
+    : [];
+
   const lines = subject
     ? [...new Set(
         meta
-          .filter(x => x.subject === subject && (!topic || x.topic === topic) && x.line_number != null)
+          .filter(x =>
+            x.subject === subject &&
+            (!topic    || x.topic    === topic) &&
+            (!subtopic || x.subtopic === subtopic) &&
+            x.line_number != null
+          )
           .map(x => x.line_number)
       )].sort((a, b) => a - b)
     : [];
 
-  function countTasks(s, tp, ln) {
+  function countTasks(s, tp, st, ln) {
     return meta.filter(x =>
-      (!s || x.subject === s) &&
-      (!tp || x.topic === tp) &&
+      (!s  || x.subject     === s)  &&
+      (!tp || x.topic       === tp) &&
+      (!st || x.subtopic    === st) &&
       (!ln || x.line_number === ln)
     ).length;
   }
 
-  function handleSubject(s) { setSubject(s === subject ? null : s); setTopic(null); setLine(null); }
-  function handleTopic(tp) { setTopic(tp); setLine(null); }
-  function handleLine(ln) { setLine(ln ? parseInt(ln) : null); }
+  function handleSubject(s) {
+    setSubject(s === subject ? null : s);
+    setTopic(null); setSubtopic(null); setLine(null);
+  }
+  function handleTopic(tp) {
+    setTopic(tp); setSubtopic(null); setLine(null);
+  }
+  function handleSubtopic(st) { setSubtopic(st); setLine(null); }
+  function handleLine(ln)     { setLine(ln ? parseInt(ln) : null); }
 
-  const canStart = subject && (topic || line);
-  const startCount = countTasks(subject, topic, line);
+  const canStart  = subject && (topic || line);
+  const startCount = countTasks(subject, topic, subtopic, line);
 
   function doStart() {
     const params = new URLSearchParams();
     params.set("subject", subject);
-    if (topic) params.set("topic", topic);
-    if (line) params.set("line", line);
+    if (topic)    params.set("topic",    topic);
+    if (subtopic) params.set("subtopic", subtopic);   // ← передаём subtopic
+    if (line)     params.set("line",     line);
     navigate(`/ege/test?${params.toString()}`);
   }
 
-  const subjectInfo = subject ? (SUBJECTS[subject] || { emoji: "📚", color: t.primary, bg: t.surface }) : null;
+  const subjectInfo = subject
+    ? (SUBJECTS[subject] || { emoji: "📚", color: t.primary, bg: t.surface })
+    : null;
 
   return (
     <div style={{ minHeight: "100vh", background: t.bg, color: t.text, paddingBottom: 140 }}>
@@ -170,11 +268,13 @@ export default function EgeTasks({ t }) {
           {/* ── ВЫБОР ПРЕДМЕТА ── */}
           {!subject && (
             <>
-              <p style={{ margin: "0 0 12px", fontSize: 11, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Выбери предмет</p>
+              <p style={{ margin: "0 0 12px", fontSize: 11, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>
+                Выбери предмет
+              </p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 {subjects.map(s => {
-                  const info = SUBJECTS[s] || { emoji: "📚", color: t.primary, bg: t.surface };
-                  const count = countTasks(s, null, null);
+                  const info  = SUBJECTS[s] || { emoji: "📚", color: t.primary, bg: t.surface };
+                  const count = countTasks(s, null, null, null);
                   return (
                     <button key={s} onClick={() => handleSubject(s)} style={{
                       background: info.bg,
@@ -198,7 +298,7 @@ export default function EgeTasks({ t }) {
             </>
           )}
 
-          {/* ── После выбора предмета ── */}
+          {/* ── ПОСЛЕ ВЫБОРА ПРЕДМЕТА ── */}
           {subject && (
             <>
               {/* Заголовок предмета */}
@@ -218,7 +318,7 @@ export default function EgeTasks({ t }) {
                 <span style={{ fontSize: 20, color: subjectInfo.color, opacity: 0.5 }}>✕</span>
               </button>
 
-              {/* 🎲 Случайные задания — внутри предмета */}
+              {/* 🎲 Случайные задания */}
               <button
                 onClick={startRandom}
                 disabled={randomLoading}
@@ -248,6 +348,7 @@ export default function EgeTasks({ t }) {
                 Или выбери тему / линию
               </p>
 
+              {/* Тема */}
               {topics.length > 0 && (
                 <Select
                   label="Тема (необязательно)"
@@ -257,21 +358,40 @@ export default function EgeTasks({ t }) {
                   t={t}
                   options={topics.map(tp => ({
                     value: tp,
-                    label: `${tp}  (${countTasks(subject, tp, null)})`,
+                    label: `${tp}  (${countTasks(subject, tp, null, null)})`,
                   }))}
                 />
               )}
 
+              {/* ── ПОДТЕМА — показываем только если выбрана тема и есть подтемы ── */}
+              {topic && subtopics.length > 0 && (
+                <SubtopicChips
+                  subtopics={subtopics}
+                  selected={subtopic}
+                  onSelect={handleSubtopic}
+                  countFn={st => countTasks(subject, topic, st, null)}
+                  t={t}
+                  accentColor={subjectInfo.color}
+                />
+              )}
+
+              {/* Линия */}
               {lines.length > 0 && (
                 <Select
-                  label={topic ? `Линия · ${topic}` : "Линия (необязательно)"}
+                  label={
+                    topic
+                      ? subtopic
+                        ? `Линия · ${subtopic}`
+                        : `Линия · ${topic}`
+                      : "Линия (необязательно)"
+                  }
                   value={line != null ? String(line) : ""}
                   onChange={handleLine}
                   placeholder="— все линии —"
                   t={t}
                   options={lines.map(ln => ({
                     value: String(ln),
-                    label: `Линия ${ln}  (${countTasks(subject, topic, ln)} зад.)`,
+                    label: `Линия ${ln}  (${countTasks(subject, topic, subtopic, ln)} зад.)`,
                   }))}
                 />
               )}
@@ -282,6 +402,7 @@ export default function EgeTasks({ t }) {
                 </p>
               )}
 
+              {/* Превью выбранного */}
               {canStart && (
                 <div style={{
                   marginTop: 8, background: t.surface,
@@ -291,14 +412,16 @@ export default function EgeTasks({ t }) {
                   <span style={{ fontSize: 28 }}>{subjectInfo.emoji}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 14, color: t.text }}>{subject}</div>
-                    <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
-                      {topic && <span>{topic}</span>}
-                      {topic && line && <span style={{ margin: "0 5px", opacity: 0.4 }}>·</span>}
-                      {line && <span>Линия {line}</span>}
+                    <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2, lineHeight: "1.5" }}>
+                      {topic    && <span>{topic}</span>}
+                      {topic && subtopic && <span style={{ margin: "0 5px", opacity: 0.4 }}>›</span>}
+                      {subtopic && <span style={{ color: subjectInfo.color }}>{subtopic}</span>}
+                      {(topic || subtopic) && line && <span style={{ margin: "0 5px", opacity: 0.4 }}>·</span>}
+                      {line     && <span>Линия {line}</span>}
                     </div>
                   </div>
                   <div style={{
-                    background: `${t.primary}22`, color: t.primary,
+                    background: `${subjectInfo.color}22`, color: subjectInfo.color,
                     borderRadius: 99, padding: "4px 12px", fontWeight: 700, fontSize: 14,
                   }}>{startCount}</div>
                 </div>
@@ -309,6 +432,7 @@ export default function EgeTasks({ t }) {
         </div>
       )}
 
+      {/* ── Кнопка старта ── */}
       {canStart && (
         <div style={{
           position: "fixed", bottom: 70, left: 0, right: 0,
