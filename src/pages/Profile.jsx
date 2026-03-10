@@ -1,14 +1,123 @@
 import { motion } from "framer-motion"
-import { Settings } from "lucide-react"
+import { Settings, ChevronRight, Flame, Zap, CheckCircle2, BookOpen, Brain } from "lucide-react"
 import { useUser } from "../App"
+import { buildTheme } from "../App"
 import SettingsModal from "../components/ui/SettingsModal"
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../supabase"
 
+const LEVELS = [
+  { level: 1, xp: 0,    label: "Новичок",  emoji: "🌱" },
+  { level: 2, xp: 50,   label: "Ученик",   emoji: "📖" },
+  { level: 3, xp: 120,  label: "Знаток",   emoji: "🔍" },
+  { level: 4, xp: 250,  label: "Практик",  emoji: "⚗️"  },
+  { level: 5, xp: 450,  label: "Эксперт",  emoji: "🧠" },
+  { level: 6, xp: 700,  label: "Мастер",   emoji: "🎯" },
+  { level: 7, xp: 1000, label: "Профи",    emoji: "🚀" },
+  { level: 8, xp: 1400, label: "Гений",    emoji: "💡" },
+  { level: 9, xp: 1900, label: "Легенда",  emoji: "⭐" },
+  { level: 10, xp: 2500, label: "ЕГЭ 100", emoji: "🏆" },
+]
+
+function getLevelInfo(xp) {
+  let current = LEVELS[0], next = LEVELS[1]
+  for (let i = 0; i < LEVELS.length; i++) {
+    if (xp >= LEVELS[i].xp) { current = LEVELS[i]; next = LEVELS[i + 1] || null }
+    else break
+  }
+  const progress = next ? Math.min(Math.round(((xp - current.xp) / (next.xp - current.xp)) * 100), 100) : 100
+  return { ...current, progress, toNext: next ? next.xp - xp : 0, nextLevel: next }
+}
+
+// Тема-пикер: сетка из 5 кружков
+const THEMES = [
+  { key: "coral",    emoji: "🪸", name: "Коралл",  color: "#FF6B4A" },
+  { key: "sage",     emoji: "🌿", name: "Шалфей",  color: "#4DAA7A" },
+  { key: "ocean",    emoji: "🌊", name: "Океан",   color: "#3A9BD5" },
+  { key: "lavender", emoji: "💜", name: "Лаванда", color: "#9B72CF" },
+  { key: "dusk",     emoji: "🌅", name: "Закат",   color: "#E8845A" },
+]
+
+function ThemePicker({ theme, setTheme, mode, setMode, t }) {
+  return (
+    <div style={{
+      background: t.surface, borderRadius: 24,
+      border: `1.5px solid ${t.border}`, padding: "16px 18px",
+      marginBottom: 12,
+    }}>
+      <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 14 }}>🎨 Оформление</div>
+
+      {/* Цвет */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+          Цвет
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          {THEMES.map(th => (
+            <motion.button
+              key={th.key}
+              whileTap={{ scale: 0.88 }}
+              className="duo-btn"
+              onClick={() => setTheme(th.key)}
+              title={th.name}
+              style={{
+                flex: 1, padding: "10px 0", borderRadius: 14,
+                background: theme === th.key ? `${th.color}22` : t.surfaceUp,
+                border: `2px solid ${theme === th.key ? th.color : t.border}`,
+                cursor: "pointer",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                transition: "all 0.2s",
+                boxShadow: theme === th.key ? `0 3px 12px ${th.color}44` : "none",
+              }}
+            >
+              <span style={{ fontSize: 18 }}>{th.emoji}</span>
+              {theme === th.key && (
+                <motion.div
+                  layoutId="theme-dot"
+                  style={{ width: 6, height: 6, borderRadius: 999, background: th.color }}
+                />
+              )}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* Режим */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+          Режим
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {[["dark", "🌙 Тёмный"], ["light", "☀️ Светлый"]].map(([m, label]) => (
+            <motion.button
+              key={m}
+              whileTap={{ scale: 0.95 }}
+              className="duo-btn"
+              onClick={() => setMode(m)}
+              style={{
+                flex: 1, padding: "11px",
+                borderRadius: 14, cursor: "pointer",
+                background: mode === m ? t.primary : t.surfaceUp,
+                border: `2px solid ${mode === m ? t.primary : t.border}`,
+                color: mode === m ? "#fff" : t.textMuted,
+                fontWeight: 700, fontSize: 13,
+                transition: "all 0.2s",
+                boxShadow: mode === m ? `0 3px 12px ${t.primaryGlow}` : "none",
+                fontFamily: "inherit",
+              }}
+            >
+              {label}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Profile({ t, theme, setTheme, mode, setMode }) {
   const { tgUser, dbUser, userLoading, isInTelegram } = useUser()
-  const [showSettings, setShowSettings] = useState(false)
   const [userData, setUserData] = useState(null)
   const [dueCount, setDueCount] = useState(0)
   const navigate = useNavigate()
@@ -18,159 +127,200 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
     : "Гость"
 
   useEffect(() => {
-    const userId = tgUser?.id || dbUser?.id;
-    if (!userId) return;
-    supabase.from("users").select("xp, streak, total_tasks")
-      .eq("id", userId).single()
-      .then(({ data }) => { if (data) setUserData(data); });
+    const userId = tgUser?.id || dbUser?.id
+    if (!userId) return
+    supabase.from("users").select("xp, streak, total_tasks").eq("id", userId).single()
+      .then(({ data }) => { if (data) setUserData(data) })
     supabase.from("spaced_repetition")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
       .lte("next_review", new Date().toISOString())
-      .then(({ count }) => setDueCount(count || 0));
-  }, [tgUser?.id, dbUser?.id]);
+      .then(({ count }) => setDueCount(count || 0))
+  }, [tgUser?.id, dbUser?.id])
 
-  const xp = userData?.xp ?? dbUser?.xp ?? 0;
-  const totalTasks = userData?.total_tasks ?? dbUser?.total_tasks ?? 0;
-  const streak = userData?.streak ?? dbUser?.streak ?? 0;
+  const xp         = userData?.xp         ?? dbUser?.xp         ?? 0
+  const totalTasks = userData?.total_tasks ?? dbUser?.total_tasks ?? 0
+  const streak     = userData?.streak     ?? dbUser?.streak     ?? 0
+  const { level, label, emoji: levelEmoji, progress } = getLevelInfo(xp)
 
   const stats = [
-    { emoji: "🔥", value: streak, label: streak === 1 ? "день подряд" : streak < 5 ? "дня подряд" : "дней подряд", color: "#FF6B4A" },
-    { emoji: "⚡", value: xp, label: "XP", color: "#FFB347" },
-    { emoji: "✅", value: totalTasks, label: "заданий", color: "#52C97A" },
+    { icon: "🔥", value: streak,     sub: streak < 5 && streak !== 1 ? "дня" : streak === 1 ? "день" : "дней", color: "#FF6B4A", bg: "#FF6B4A18" },
+    { icon: "⚡",  value: xp,        sub: "XP",       color: t.primary,  bg: t.secondary },
+    { icon: "✅", value: totalTasks, sub: "заданий",  color: "#58CC02",  bg: "#58CC0218" },
   ]
 
   return (
-    <div style={{ padding: "24px 16px 100px" }}>
+    <div style={{ minHeight: "100vh", background: t.bg, paddingBottom: 110 }}>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: t.text }}>Профиль</h1>
-        <motion.button whileTap={{ scale: 0.9 }} onClick={() => setShowSettings(true)}
-          style={{
-            background: t.surface, border: `1px solid ${t.border}`,
-            borderRadius: 999, width: 40, height: 40,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", color: t.textMuted,
-          }}>
-          <Settings size={18} />
-        </motion.button>
+      {/* Заголовок */}
+      <div style={{
+        background: t.surface,
+        borderBottom: `1.5px solid ${t.border}`,
+        padding: "20px 16px 16px",
+        marginBottom: 16,
+      }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: t.text }}>Профиль</h1>
       </div>
 
-      {/* Аватар + имя */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-        style={{
-          background: t.surface, borderRadius: 24, padding: 20,
-          border: `1px solid ${t.border}`, marginBottom: 16,
-          display: "flex", alignItems: "center", gap: 16,
-        }}
-      >
-        <div style={{
-          width: 64, height: 64, borderRadius: 999,
-          background: `linear-gradient(135deg, ${t.primary}, ${t.primaryBright})`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 26, fontWeight: 800, color: "white",
-          boxShadow: `0 4px 16px ${t.primaryGlow}`,
-          overflow: "hidden", flexShrink: 0,
-        }}>
-          {tgUser?.photoUrl
-            ? <img src={tgUser.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            : displayName[0]?.toUpperCase() || "?"}
-        </div>
+      <div style={{ padding: "0 16px" }}>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontWeight: 800, fontSize: 18, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {userLoading ? "..." : displayName}
-          </p>
-          {tgUser?.username && (
-            <p style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>@{tgUser.username}</p>
-          )}
-          {!isInTelegram && (
-            <p style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>
-              Открой в Telegram для авторизации
-            </p>
-          )}
-        </div>
-      </motion.div>
-
-      {/* Статистика */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-        style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
-          gap: 10, marginBottom: 16,
-        }}
-      >
-        {stats.map((s, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1 + i * 0.05 }}
-            style={{
-              background: t.surface, borderRadius: 20,
-              border: `1px solid ${t.border}`,
-              padding: "14px 10px", textAlign: "center",
-            }}
-          >
-            <div style={{ fontSize: 22, marginBottom: 4 }}>{s.emoji}</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
-            <div style={{ fontSize: 10, color: t.textMuted, marginTop: 3, fontWeight: 600 }}>{s.label}</div>
-          </motion.div>
-        ))}
-      </motion.div>
-
-      {/* Работа над ошибками */}
-      <motion.button
-        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-        whileTap={{ scale: 0.97 }}
-        onClick={() => navigate("/errors")}
-        style={{
-          width: "100%", padding: "16px 20px", borderRadius: 20, marginBottom: 10,
-          background: t.surface, border: `1px solid ${t.border}`,
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          cursor: "pointer", color: t.text,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: `${t.error}22`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>📝</div>
-          <div style={{ textAlign: "left" }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>Работа над ошибками</div>
-            <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>Персонализированный тест</div>
-          </div>
-        </div>
-        <span style={{ color: t.textMuted, fontSize: 18 }}>→</span>
-      </motion.button>
-
-      {/* Интервальное повторение */}
-      <motion.button
-        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-        whileTap={{ scale: 0.97 }}
-        onClick={() => navigate("/repeat")}
-        style={{
-          width: "100%", padding: "16px 20px", borderRadius: 20, marginBottom: 10,
-          background: t.surface, border: `1px solid ${dueCount > 0 ? t.primary : t.border}`,
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          cursor: "pointer", color: t.text,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: `${t.primary}22`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🧠</div>
-          <div style={{ textAlign: "left" }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>Интервальное повторение</div>
-            <div style={{ fontSize: 12, color: dueCount > 0 ? t.primary : t.textMuted, marginTop: 2 }}>
-              {dueCount > 0 ? `${dueCount} заданий ждут повторения` : "Умный алгоритм повторения"}
+        {/* Аватар */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            background: t.surface,
+            borderRadius: 24, padding: "18px 18px",
+            border: `1.5px solid ${t.border}`,
+            marginBottom: 12,
+            display: "flex", alignItems: "center", gap: 16,
+          }}
+        >
+          {/* Аватар с уровнем */}
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <div style={{
+              width: 68, height: 68, borderRadius: 22,
+              background: `linear-gradient(135deg, ${t.primary}, ${t.primaryBright})`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 26, fontWeight: 900, color: "white",
+              boxShadow: `0 4px 18px ${t.primaryGlow}`,
+              overflow: "hidden",
+            }}>
+              {tgUser?.photoUrl
+                ? <img src={tgUser.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                : displayName[0]?.toUpperCase() || "?"}
+            </div>
+            {/* Бейдж уровня */}
+            <div style={{
+              position: "absolute", bottom: -6, right: -6,
+              background: t.primary, color: "#fff",
+              borderRadius: 10, width: 24, height: 24,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 11, fontWeight: 900,
+              border: `2px solid ${t.bg}`,
+              boxShadow: `0 2px 8px ${t.primaryGlow}`,
+            }}>
+              {level}
             </div>
           </div>
-        </div>
-        {dueCount > 0 && (
-          <span style={{ background: t.primary, color: "#fff", borderRadius: 999, fontSize: 12, fontWeight: 700, padding: "3px 10px" }}>{dueCount}</span>
-        )}
-        {dueCount === 0 && <span style={{ color: t.textMuted, fontSize: 18 }}>→</span>}
-      </motion.button>
 
-      {showSettings && (
-        <SettingsModal t={t} theme={theme} setTheme={setTheme} mode={mode} setMode={setMode} onClose={() => setShowSettings(false)} />
-      )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontWeight: 900, fontSize: 18, color: t.text, margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {userLoading ? "..." : displayName}
+            </p>
+            {tgUser?.username && (
+              <p style={{ fontSize: 12, color: t.textMuted, margin: "0 0 8px" }}>@{tgUser.username}</p>
+            )}
+
+            {/* Мини прогресс-бар уровня */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 11, color: t.primary, fontWeight: 700 }}>{levelEmoji} {label}</span>
+              <div style={{ flex: 1, height: 5, background: t.surfaceUp, borderRadius: 999, overflow: "hidden" }}>
+                <motion.div
+                  key={xp}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 1, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                  style={{
+                    height: "100%", borderRadius: 999,
+                    background: `linear-gradient(90deg, ${t.primary}, ${t.primaryBright})`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Статы */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}
+        >
+          {stats.map((s, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.1 + i * 0.07, type: "spring", stiffness: 280 }}
+              style={{
+                background: t.surface,
+                border: `1.5px solid ${t.border}`,
+                borderRadius: 18, padding: "14px 8px",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 24, marginBottom: 4 }}>{s.icon}</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 3, fontWeight: 700 }}>{s.sub}</div>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        {/* Тема-пикер */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+          <ThemePicker theme={theme} setTheme={setTheme} mode={mode} setMode={setMode} t={t} />
+        </motion.div>
+
+        {/* Разделы */}
+        {[
+          {
+            emoji: "📝", title: "Работа над ошибками", sub: "Персонализированный тест",
+            color: t.error, path: "/errors", delay: 0.2,
+          },
+          {
+            emoji: "🧠", title: "Интервальное повторение", sub: dueCount > 0 ? `${dueCount} заданий ждут` : "Умный алгоритм",
+            color: t.primary, path: "/repeat", delay: 0.25, badge: dueCount > 0 ? dueCount : null,
+          },
+        ].map(({ emoji, title, sub, color, path, delay, badge }) => (
+          <motion.button
+            key={path}
+            className="duo-btn"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => navigate(path)}
+            style={{
+              width: "100%", padding: "15px 18px",
+              borderRadius: 20, marginBottom: 10,
+              background: t.surface,
+              border: `1.5px solid ${badge ? color + "66" : t.border}`,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              cursor: "pointer", textAlign: "left",
+              boxShadow: badge ? `0 2px 12px ${color}22` : "none",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{
+                width: 42, height: 42, borderRadius: 14,
+                background: `${color}18`,
+                border: `1.5px solid ${color}33`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 20,
+              }}>
+                {emoji}
+              </div>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 2 }}>{title}</div>
+                <div style={{ fontWeight: 600, fontSize: 12, color: badge ? color : t.textMuted }}>{sub}</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {badge && (
+                <div style={{
+                  background: color, color: "#fff",
+                  borderRadius: 999, padding: "2px 10px",
+                  fontSize: 12, fontWeight: 900,
+                }}>{badge}</div>
+              )}
+              <ChevronRight size={18} color={t.textMuted} />
+            </div>
+          </motion.button>
+        ))}
+
+      </div>
     </div>
   )
 }
