@@ -55,7 +55,6 @@ function Select({ label, value, onChange, options, placeholder, t }) {
   );
 }
 
-/* ── Чипы для подтем ── */
 function SubtopicChips({ subtopics, selected, onSelect, countFn, t, accentColor }) {
   if (!subtopics.length) return null;
 
@@ -69,7 +68,6 @@ function SubtopicChips({ subtopics, selected, onSelect, countFn, t, accentColor 
         Подтема{selected ? "" : " (необязательно)"}
       </label>
 
-      {/* «Все подтемы» */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <button
           onClick={() => onSelect(null)}
@@ -125,12 +123,17 @@ export default function EgeTasks({ t }) {
   const navigate = useNavigate();
   const { tgUser, dbUser } = useUser();
 
+  // ── НОВОЕ: проверка админа ──
+  const isAdmin = (tgUser?.id || dbUser?.id) === 5015547885;
+
   const [meta, setMeta] = useState([]);
   const [loading, setLoading] = useState(true);
+  // ── НОВОЕ: множество скрытых предметов ──
+  const [hiddenSubjects, setHiddenSubjects] = useState(new Set());
 
   const [subject, setSubject]   = useState(null);
   const [topic, setTopic]       = useState(null);
-  const [subtopic, setSubtopic] = useState(null);   // ← НОВОЕ
+  const [subtopic, setSubtopic] = useState(null);
   const [line, setLine]         = useState(null);
   const [randomLoading, setRandomLoading] = useState(false);
 
@@ -138,13 +141,23 @@ export default function EgeTasks({ t }) {
 
   async function fetchMeta() {
     setLoading(true);
+
+    // ── НОВОЕ: загружаем конфиг видимости (только для обычных пользователей) ──
+    if (!isAdmin) {
+      const { data: cfg } = await supabase.from("subject_config").select("*");
+      const hidden = new Set(
+        (cfg || []).filter(r => !r.is_visible).map(r => r.subject.toLowerCase())
+      );
+      setHiddenSubjects(hidden);
+    }
+
     let all = [];
     let from = 0;
     const BATCH = 1000;
     while (true) {
       const { data } = await supabase
         .from("ege_tasks")
-        .select("subject, topic, subtopic, line_number")  // ← добавили subtopic
+        .select("subject, topic, subtopic, line_number")
         .range(from, from + BATCH - 1);
       if (!data || data.length === 0) break;
       all = all.concat(data);
@@ -189,13 +202,15 @@ export default function EgeTasks({ t }) {
   }
 
   const totalCount = meta.length;
-  const subjects = [...new Set(meta.map(x => x.subject).filter(Boolean))].sort();
+
+  // ── НОВОЕ: фильтр предметов — скрытые видит только админ ──
+  const subjects = [...new Set(meta.map(x => x.subject).filter(Boolean))].sort()
+    .filter(s => isAdmin || !hiddenSubjects.has(s.toLowerCase()));
 
   const topics = subject
     ? [...new Set(meta.filter(x => x.subject === subject).map(x => x.topic).filter(Boolean))].sort()
     : [];
 
-  // ── Подтемы: только для выбранного предмета + темы ──
   const subtopics = (subject && topic)
     ? [...new Set(
         meta
@@ -243,7 +258,7 @@ export default function EgeTasks({ t }) {
     const params = new URLSearchParams();
     params.set("subject", subject);
     if (topic)    params.set("topic",    topic);
-    if (subtopic) params.set("subtopic", subtopic);   // ← передаём subtopic
+    if (subtopic) params.set("subtopic", subtopic);
     if (line)     params.set("line",     line);
     navigate(`/ege/test?${params.toString()}`);
   }
@@ -257,7 +272,15 @@ export default function EgeTasks({ t }) {
 
       <div style={{ padding: "28px 20px 20px" }}>
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Задания ЕГЭ</h1>
-        <p style={{ margin: "5px 0 0", color: t.textMuted, fontSize: 14 }}>{totalCount} заданий в базе</p>
+        <p style={{ margin: "5px 0 0", color: t.textMuted, fontSize: 14 }}>
+          {totalCount} заданий в базе
+          {/* ── НОВОЕ: подсказка для админа ── */}
+          {isAdmin && (
+            <span style={{ marginLeft: 8, fontSize: 11, color: t.primary, fontWeight: 700 }}>
+              👑 Режим админа — видишь все предметы
+            </span>
+          )}
+        </p>
       </div>
 
       {loading ? (
@@ -265,7 +288,6 @@ export default function EgeTasks({ t }) {
       ) : (
         <div style={{ padding: "0 16px" }}>
 
-          {/* ── ВЫБОР ПРЕДМЕТА ── */}
           {!subject && (
             <>
               <p style={{ margin: "0 0 12px", fontSize: 11, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>
@@ -275,6 +297,8 @@ export default function EgeTasks({ t }) {
                 {subjects.map(s => {
                   const info  = SUBJECTS[s] || { emoji: "📚", color: t.primary, bg: t.surface };
                   const count = countTasks(s, null, null, null);
+                  // ── НОВОЕ: плашка СКРЫТ для админа ──
+                  const isHiddenForUsers = isAdmin && hiddenSubjects.has(s.toLowerCase());
                   return (
                     <button key={s} onClick={() => handleSubject(s)} style={{
                       background: info.bg,
@@ -283,7 +307,19 @@ export default function EgeTasks({ t }) {
                       cursor: "pointer", transition: "all 0.18s",
                       display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
                       boxShadow: `0 4px 24px ${info.color}18`,
+                      position: "relative",
                     }}>
+                      {isHiddenForUsers && (
+                        <div style={{
+                          position: "absolute", top: 10, right: 10,
+                          background: "#FF9500CC", color: "#fff",
+                          fontSize: 9, fontWeight: 800,
+                          padding: "2px 7px", borderRadius: 99,
+                          letterSpacing: "0.05em",
+                        }}>
+                          СКРЫТ
+                        </div>
+                      )}
                       <span style={{ fontSize: 52, lineHeight: 1 }}>{info.emoji}</span>
                       <span style={{ fontSize: 14, fontWeight: 800, color: info.color, textAlign: "center" }}>{s}</span>
                       <span style={{
@@ -298,10 +334,8 @@ export default function EgeTasks({ t }) {
             </>
           )}
 
-          {/* ── ПОСЛЕ ВЫБОРА ПРЕДМЕТА ── */}
           {subject && (
             <>
-              {/* Заголовок предмета */}
               <button onClick={() => handleSubject(subject)} style={{
                 width: "100%", display: "flex", alignItems: "center", gap: 14,
                 background: subjectInfo.bg,
@@ -318,7 +352,6 @@ export default function EgeTasks({ t }) {
                 <span style={{ fontSize: 20, color: subjectInfo.color, opacity: 0.5 }}>✕</span>
               </button>
 
-              {/* 🎲 Случайные задания */}
               <button
                 onClick={startRandom}
                 disabled={randomLoading}
@@ -343,12 +376,10 @@ export default function EgeTasks({ t }) {
                 <span style={{ fontSize: 24, color: "#fff" }}>→</span>
               </button>
 
-              {/* Разделитель */}
               <p style={{ margin: "0 0 12px", fontSize: 11, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>
                 Или выбери тему / линию
               </p>
 
-              {/* Тема */}
               {topics.length > 0 && (
                 <Select
                   label="Тема (необязательно)"
@@ -363,7 +394,6 @@ export default function EgeTasks({ t }) {
                 />
               )}
 
-              {/* ── ПОДТЕМА — показываем только если выбрана тема и есть подтемы ── */}
               {topic && subtopics.length > 0 && (
                 <SubtopicChips
                   subtopics={subtopics}
@@ -375,7 +405,6 @@ export default function EgeTasks({ t }) {
                 />
               )}
 
-              {/* Линия */}
               {lines.length > 0 && (
                 <Select
                   label={
@@ -402,7 +431,6 @@ export default function EgeTasks({ t }) {
                 </p>
               )}
 
-              {/* Превью выбранного */}
               {canStart && (
                 <div style={{
                   marginTop: 8, background: t.surface,
@@ -432,7 +460,6 @@ export default function EgeTasks({ t }) {
         </div>
       )}
 
-      {/* ── Кнопка старта ── */}
       {canStart && (
         <div style={{
           position: "fixed", bottom: 70, left: 0, right: 0,
