@@ -142,7 +142,7 @@ function UserDetails({ user, onClose }) {
           const chunk = wrongIds.slice(i, i + 500);
           const { data: tasks } = await supabase
             .from("ege_tasks")
-            .select("id, source_id, question, answer, line_number, topic, subtopic, subject")
+            .select("id, source_id, question, answer, solution, options, line_number, topic, subtopic, subject")
             .in("id", chunk);
           (tasks || []).forEach(t => { taskMap[t.id] = t; });
         }
@@ -503,9 +503,9 @@ function StatsTab() {
           />
           {users.filter(u => {
             if (!userSearch.trim()) return true;
-            const q = userSearch.trim().toLowerCase();
+            const q = userSearch.trim().toLowerCase().replace(/^@/, "");
             const name = [u.first_name, u.last_name].filter(Boolean).join(" ").toLowerCase();
-            const username = (u.username || "").toLowerCase();
+            const username = (u.username || "").toLowerCase().replace(/^@/, "");
             return name.includes(q) || username.includes(q);
           }).map(u => {
             const ua = answers.filter(a => a.user_id === u.id);
