@@ -45,6 +45,62 @@ const inputStyle = {
 const textareaStyle = { ...inputStyle, minHeight: 90, resize: "vertical", lineHeight: 1.6 };
 
 // ─────────────────────────────────────────
+// Модалка просмотра задания
+// ─────────────────────────────────────────
+function TaskPreviewModal({ task, onClose }) {
+  if (!task) return null;
+  const questionHtml = task.question || "";
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(0,0,0,0.9)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      <div style={{ background: S.surface, borderRadius: "24px 24px 0 0", padding: "20px 16px 40px", width: "100%", maxWidth: 700, maxHeight: "85vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+        {/* Шапка */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontFamily: "monospace", fontSize: 11, color: S.primary, background: "rgba(99,102,241,0.15)", padding: "3px 8px", borderRadius: 6 }}>#{task.id?.slice(0, 8)}</span>
+            {task.line_number && <span style={{ fontSize: 11, color: S.textMuted, background: S.border, padding: "3px 8px", borderRadius: 6 }}>Линия {task.line_number}</span>}
+            {task.subject && <span style={{ fontSize: 11, color: S.textDim }}>{task.subject}</span>}
+          </div>
+          <button onClick={onClose} style={{ background: S.surfaceUp, border: "none", color: S.textMuted, width: 32, height: 32, borderRadius: 999, fontSize: 16, cursor: "pointer" }}>✕</button>
+        </div>
+
+        {/* Тема */}
+        {task.topic && <div style={{ fontSize: 11, color: S.textDim, marginBottom: 12 }}>📂 {task.topic}{task.subtopic ? ` → ${task.subtopic}` : ""}</div>}
+
+        {/* Вопрос */}
+        <div style={{ background: S.surfaceUp, borderRadius: 14, padding: "12px 14px", marginBottom: 12, border: `1px solid ${S.border}` }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: S.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Вопрос</div>
+          <div style={{ fontSize: 13, color: S.text, lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: questionHtml }} />
+        </div>
+
+        {/* Варианты */}
+        {task.options && (
+          <div style={{ background: S.surfaceUp, borderRadius: 14, padding: "12px 14px", marginBottom: 12, border: `1px solid ${S.border}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: S.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Варианты</div>
+            {task.options.split("||").map((opt, i) => (
+              <div key={i} style={{ fontSize: 12, color: S.text, padding: "4px 0", borderBottom: `1px solid ${S.border}` }}>{i + 1}. {opt.trim()}</div>
+            ))}
+          </div>
+        )}
+
+        {/* Ответ */}
+        <div style={{ background: "rgba(22,163,74,0.12)", borderRadius: 14, padding: "12px 14px", marginBottom: 12, border: "1px solid #16a34a44" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: S.greenText, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Правильный ответ</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: S.greenText }}>{task.answer}</div>
+        </div>
+
+        {/* Решение */}
+        {task.solution && (
+          <div style={{ background: S.surfaceUp, borderRadius: 14, padding: "12px 14px", border: `1px solid ${S.border}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: S.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Объяснение</div>
+            <div style={{ fontSize: 12, color: S.textMuted, lineHeight: 1.6 }}>{task.solution.replace(/!!$/, "").trim()}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
 // Модалка с ПОЛНЫМИ деталями ошибок пользователя
 // Грузит данные отдельно — не зависит от лимита StatsTab
 // ─────────────────────────────────────────
@@ -53,6 +109,7 @@ function UserDetails({ user, onClose }) {
   const [taskDetails, setTaskDetails] = useState({});
   const [loading, setLoading] = useState(true);
   const [subjectFilter, setSubjectFilter] = useState("все");
+  const [previewTask, setPreviewTask] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -112,6 +169,7 @@ function UserDetails({ user, onClose }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      {previewTask && <TaskPreviewModal task={previewTask} onClose={() => setPreviewTask(null)} />}
       <div style={{ background: S.surface, borderRadius: "24px 24px 0 0", padding: "20px 16px 40px", width: "100%", maxWidth: 700, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
 
         {/* Шапка */}
@@ -183,14 +241,21 @@ function UserDetails({ user, onClose }) {
                     {/* Вопрос */}
                     {questionText && <div style={{ fontSize: 11, color: S.textMuted, marginBottom: 6, lineHeight: 1.4 }}>{questionText}{questionText.length >= 120 ? "..." : ""}</div>}
 
-                    {/* Ответы */}
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: "rgba(220,38,38,0.15)", color: S.redText }}>
-                        Ответил: <b>{ans.user_answer || "—"}</b>
-                      </span>
-                      <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: "rgba(22,163,74,0.15)", color: S.greenText }}>
-                        Верно: <b>{ans.correct_answer || task?.answer || "—"}</b>
-                      </span>
+                    {/* Ответы + кнопка просмотра */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: "rgba(220,38,38,0.15)", color: S.redText }}>
+                          Ответил: <b>{ans.user_answer || "—"}</b>
+                        </span>
+                        <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: "rgba(22,163,74,0.15)", color: S.greenText }}>
+                          Верно: <b>{ans.correct_answer || task?.answer || "—"}</b>
+                        </span>
+                      </div>
+                      {task && (
+                        <button onClick={e => { e.stopPropagation(); setPreviewTask(task); }} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, background: "rgba(99,102,241,0.15)", color: S.primary, border: `1px solid rgba(99,102,241,0.3)`, cursor: "pointer", fontWeight: 700, flexShrink: 0 }}>
+                          👁 Задание
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
