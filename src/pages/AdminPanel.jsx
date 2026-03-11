@@ -134,17 +134,18 @@ function UserDetails({ user, onClose }) {
       setAllAnswers(allRows);
 
       // Грузим детали заданий для неправильных ответов
+      // task_id в user_answers = source_id в ege_tasks (числовой)
       const wrongIds = [...new Set(allRows.filter(a => !a.is_correct).map(a => a.task_id))];
       if (wrongIds.length > 0) {
-        // Gruzim pачками по 500
         let taskMap = {};
         for (let i = 0; i < wrongIds.length; i += 500) {
           const chunk = wrongIds.slice(i, i + 500);
           const { data: tasks } = await supabase
             .from("ege_tasks")
             .select("id, source_id, question, answer, solution, options, line_number, topic, subtopic, subject")
-            .in("id", chunk);
-          (tasks || []).forEach(t => { taskMap[t.id] = t; });
+            .in("source_id", chunk);
+          // Мапим по source_id — именно его хранит user_answers
+          (tasks || []).forEach(t => { taskMap[t.source_id] = t; });
         }
         setTaskDetails(taskMap);
       }
