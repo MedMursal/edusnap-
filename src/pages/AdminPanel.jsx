@@ -569,17 +569,50 @@ function StatsTab() {
   );
 }
 
+const ADMIN_PASSWORD = "edusnap2025";
+
 export default function AdminPanel() {
   const navigate = useNavigate();
   const { dbUser } = useUser();
+  const [unlocked, setUnlocked] = useState(false);
+  const [pwd, setPwd] = useState("");
+  const [pwdError, setPwdError] = useState(false);
   const [activeTab, setActiveTab] = useState("search");
   const [form, setForm] = useState({ source_id: "", subject: "Биология", topic: "", subtopic: "", question: "", answer: "", solution: "", difficulty: "2", image_url: "", options: "" });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
-  if (dbUser && dbUser.id !== ADMIN_ID) {
-    return <div style={{ minHeight: "100vh", background: S.bg, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: S.redText, fontSize: 16 }}>⛔ Доступ запрещён</div></div>;
+  function handleUnlock() {
+    if (pwd === ADMIN_PASSWORD) { setUnlocked(true); }
+    else { setPwdError(true); setPwd(""); setTimeout(() => setPwdError(false), 1500); }
+  }
+
+  if (!unlocked) {
+    return (
+      <div style={{ minHeight: "100vh", background: S.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ textAlign: "center", fontSize: 32, marginBottom: 4 }}>🔒</div>
+          <div style={{ textAlign: "center", fontWeight: 800, fontSize: 18, color: S.text, marginBottom: 4 }}>Админ-панель</div>
+          <input
+            type="password"
+            value={pwd}
+            onChange={e => setPwd(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleUnlock()}
+            placeholder="Введи пароль..."
+            autoFocus
+            style={{ ...inputStyle, textAlign: "center", fontSize: 16, border: `1.5px solid ${pwdError ? S.red : S.border}`, transition: "border-color 0.2s" }}
+          />
+          {pwdError && <div style={{ textAlign: "center", color: S.redText, fontSize: 13 }}>Неверный пароль</div>}
+          <button onClick={handleUnlock} style={{ background: S.primary, color: "#fff", padding: "13px", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: "pointer", border: "none" }}>
+            Войти
+          </button>
+          <button onClick={() => navigate(-1)} style={{ background: "transparent", color: S.textMuted, padding: "10px", borderRadius: 12, fontSize: 13, cursor: "pointer", border: `1px solid ${S.border}` }}>
+            Назад
+          </button>
+        </div>
+      </div>
+    );
   }
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
