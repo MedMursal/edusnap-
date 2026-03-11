@@ -4,11 +4,63 @@ import { supabase } from "../supabase";
 import { useUser } from "../App";
 import FrogReaction from "../components/FrogReaction";
 
+// ─────────────────────────────────────────────────────────
+// XP за правильный ответ по линии задания
+// Источник: ФИПИ, спецификация ЕГЭ 2025
+// 1 первичный балл ФИПИ = 10 XP
+// 2 первичных балла      = 20 XP
+// 3 первичных балла      = 30 XP
+// ─────────────────────────────────────────────────────────
 const XP_CONFIG = {
-  биология: { 1:10,2:10,3:10,4:10,5:10,6:20,7:20,8:20,9:10,10:10,11:20,12:20,13:10,14:10,15:10,16:10,17:10,18:10,19:10,20:10,21:20 },
-  химия: { 1:10,2:10,3:10,4:10,5:10,6:20,7:20,8:20,9:10,10:10,11:10,12:10,13:10,14:20,15:20,16:10,17:10,18:10,19:10,20:10,21:10,22:20,23:20,24:20,25:10,26:10,27:10,28:10 },
+  // Биология: линии 1–28
+  // 1 балл: 1, 3–5, 9, 13
+  // 2 балла: 2, 6–8, 10–12, 14–21
+  // 3 балла: 22–28
+  биология: {
+    1:10, 2:20, 3:10, 4:10, 5:10,
+    6:20, 7:20, 8:20, 9:10, 10:20,
+    11:20, 12:20, 13:10, 14:20, 15:20,
+    16:20, 17:20, 18:20, 19:20, 20:20,
+    21:20, 22:30, 23:30, 24:30, 25:30,
+    26:30, 27:30, 28:30,
+  },
+  // Химия: линии 1–28 (первая часть)
+  // 1 балл: 1–5, 9–13, 16–21, 25–28
+  // 2 балла: 6–8, 14–15, 22–24
+  химия: {
+    1:10,  2:10,  3:10,  4:10,  5:10,
+    6:20,  7:20,  8:20,  9:10,  10:10,
+    11:10, 12:10, 13:10, 14:20, 15:20,
+    16:10, 17:10, 18:10, 19:10, 20:10,
+    21:10, 22:20, 23:20, 24:20, 25:10,
+    26:10, 27:10, 28:10,
+  },
+  // Физика: линии 1–21 (первая часть)
+  // 1 балл: 1–4, 7–8, 11–13, 16, 19–20
+  // 2 балла: 5–6, 9–10, 14–15, 17–18
+  // 3 балла: 21
+  физика: {
+    1:10,  2:10,  3:10,  4:10,  5:20,
+    6:20,  7:10,  8:10,  9:20,  10:20,
+    11:10, 12:10, 13:10, 14:20, 15:20,
+    16:10, 17:20, 18:20, 19:10, 20:10,
+    21:30,
+  },
+  // Русский язык: линии 1–26 (первая часть)
+  // 1 балл: 1–7, 9–21, 23–26
+  // 2 балла: 8, 22
+  "русский язык": {
+    1:10,  2:10,  3:10,  4:10,  5:10,
+    6:10,  7:10,  8:20,  9:10,  10:10,
+    11:10, 12:10, 13:10, 14:10, 15:10,
+    16:10, 17:10, 18:10, 19:10, 20:10,
+    21:10, 22:20, 23:10, 24:10, 25:10,
+    26:10,
+  },
 };
+
 const DEFAULT_XP = 10;
+
 function getXpForTask(task) {
   const subject = (task.subject || "биология").toLowerCase().trim();
   const line = parseInt(task.line_number);
@@ -465,7 +517,7 @@ export default function EgeTest({ t }) {
     setIsCorrect(correct); setAnswered(true); setUserAnswer(given);
     setResults(prev => [...prev, { task, userAnswer: given, correct, skipped: false }]);
     saveAnswer(task, given, correct);
-    showFrog(correct); // ← лягушка!
+    showFrog(correct);
   }
 
   function norm(a) { return (a||"").trim().toLowerCase().replace(/[\s,.\-]/g,""); }
@@ -551,7 +603,6 @@ export default function EgeTest({ t }) {
 
   const task = tasks[current];
   const taskId = task.source_id || String(task.id);
-  const shortId = task.id || "";
   const isRetry = skippedOnce.has(taskId);
   const type = getTaskType(task);
   const options = getOptions(task);
@@ -567,7 +618,6 @@ export default function EgeTest({ t }) {
       {showXpFloat && <XpFloat xp={lastXp} onDone={() => setShowXpFloat(false)} />}
       {editTask && <EditModal task={editTask} t={t} onClose={() => setEditTask(null)} onSaved={(form) => { setTasks(prev => prev.map(tk => tk.id === editTask.id ? { ...tk, ...form } : tk)); }} />}
 
-      {/* ── Лягушка-реакция ── */}
       {frogVariant && <FrogOverlay variant={frogVariant} t={t} leaving={frogLeaving} />}
 
       <div style={{ position:"fixed",top:0,left:0,right:0,zIndex:30,background:t.surface,borderBottom:`1px solid ${t.border}` }}>
