@@ -433,6 +433,7 @@ function StatsTab() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("users");
   const [selectedUser, setSelectedUser] = useState(null);
+  const [userSearch, setUserSearch] = useState("");
 
   useEffect(() => { fetchStats(); }, []);
 
@@ -493,7 +494,20 @@ function StatsTab() {
 
       {tab === "users" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {users.map(u => {
+          {/* Поиск по имени / username */}
+          <input
+            value={userSearch}
+            onChange={e => setUserSearch(e.target.value)}
+            placeholder="🔍 Поиск по имени или @username..."
+            style={{ ...inputStyle, marginBottom: 4 }}
+          />
+          {users.filter(u => {
+            if (!userSearch.trim()) return true;
+            const q = userSearch.trim().toLowerCase();
+            const name = [u.first_name, u.last_name].filter(Boolean).join(" ").toLowerCase();
+            const username = (u.username || "").toLowerCase();
+            return name.includes(q) || username.includes(q);
+          }).map(u => {
             const ua = answers.filter(a => a.user_id === u.id);
             const total = ua.length; const correct = ua.filter(a => a.is_correct).length;
             const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
