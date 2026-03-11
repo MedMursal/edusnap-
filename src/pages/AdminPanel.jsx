@@ -347,6 +347,7 @@ function SubjectsTab() {
 }
 
 function SearchTab() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [result, setResult] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -418,6 +419,9 @@ function SearchTab() {
           <Field label="Объяснение"><textarea value={form.solution} onChange={e => set("solution", e.target.value)} style={textareaStyle} /></Field>
           {error && <div style={{ background: "rgba(127,29,29,0.3)", border: `1px solid ${S.red}`, borderRadius: 10, padding: "10px 14px", fontSize: 13, color: S.redText }}>⚠️ {error}</div>}
           {saved && <div style={{ background: "rgba(22,101,52,0.3)", border: `1px solid ${S.green}`, borderRadius: 10, padding: "10px 14px", fontSize: 13, color: S.greenText }}>✅ Сохранено!</div>}
+          <button onClick={() => navigate(`/ege/test?ids=${result.id}`)} style={{ width: "100%", background: "rgba(22,163,74,0.15)", color: S.greenText, padding: "13px", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", border: `1px solid #16a34a55` }}>
+            ▶️ Решить это задание
+          </button>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={handleSave} disabled={saving} style={{ flex: 1, background: saving ? S.surfaceUp : S.primary, color: saving ? S.textMuted : "#fff", padding: "13px", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", border: "none" }}>{saving ? "Сохраняем..." : "💾 Сохранить"}</button>
             <button onClick={handleDelete} style={{ background: "rgba(127,29,29,0.3)", color: S.redText, padding: "13px 16px", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", border: `1px solid ${S.red}` }}>🗑️</button>
