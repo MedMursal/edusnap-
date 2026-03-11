@@ -45,18 +45,177 @@ const inputStyle = {
 const textareaStyle = { ...inputStyle, minHeight: 90, resize: "vertical", lineHeight: 1.6 };
 
 // ─────────────────────────────────────────
-// Новая вкладка: управление видимостью предметов
+// Модалка с ПОЛНЫМИ деталями ошибок пользователя
+// Грузит данные отдельно — не зависит от лимита StatsTab
 // ─────────────────────────────────────────
-function SubjectsTab() {
-  const [configs, setConfigs] = useState({});   // { "Биология": true, "Химия": false, ... }
+function UserDetails({ user, onClose }) {
+  const [allAnswers, setAllAnswers] = useState([]);
+  const [taskDetails, setTaskDetails] = useState({});
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState(null); // subject который сейчас сохраняется
+  const [subjectFilter, setSubjectFilter] = useState("все");
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+
+      // Грузим ВСЕ ответы пользователя постранично (обходим лимит 1000)
+      let allRows = [];
+      let from = 0;
+      const BATCH = 1000;
+      while (true) {
+        const { data } = await supabase
+          .from("user_answers")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .range(from, from + BATCH - 1);
+        if (!data || data.length === 0) break;
+        allRows = [...allRows, ...data];
+        if (data.length < BATCH) break;
+        from += BATCH;
+      }
+      setAllAnswers(allRows);
+
+      // Грузим детали заданий для неправильных ответов
+      const wrongIds = [...new Set(allRows.filter(a => !a.is_correct).map(a => a.task_id))];
+      if (wrongIds.length > 0) {
+        // Gruzim pачками по 500
+        let taskMap = {};
+        for (let i = 0; i < wrongIds.length; i += 500) {
+          const chunk = wrongIds.slice(i, i + 500);
+          const { data: tasks } = await supabase
+            .from("ege_tasks")
+            .select("id, source_id, question, answer, line_number, topic, subtopic, subject")
+            .in("id", chunk);
+          (tasks || []).forEach(t => { taskMap[t.id] = t; });
+        }
+        setTaskDetails(taskMap);
+      }
+
+      setLoading(false);
+    }
+    load();
+  }, [user.id]);
+
+  const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || "Без имени";
+  const total = allAnswers.length;
+  const correct = allAnswers.filter(a => a.is_correct).length;
+  const wrongAnswers = allAnswers.filter(a => !a.is_correct);
+  const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+
+  // Предметы для фильтра
+  const subjects = [...new Set(wrongAnswers.map(a => taskDetails[a.task_id]?.subject).filter(Boolean))];
+
+  const filteredWrong = subjectFilter === "все"
+    ? wrongAnswers
+    : wrongAnswers.filter(a => taskDetails[a.task_id]?.subject === subjectFilter);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      <div style={{ background: S.surface, borderRadius: "24px 24px 0 0", padding: "20px 16px 40px", width: "100%", maxWidth: 700, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+
+        {/* Шапка */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 16, color: S.text }}>{name}</div>
+            <div style={{ fontSize: 12, color: S.textMuted }}>@{user.username || user.id}</div>
+          </div>
+          <button onClick={onClose} style={{ background: S.surfaceUp, border: "none", color: S.textMuted, width: 32, height: 32, borderRadius: 999, fontSize: 16, cursor: "pointer" }}>✕</button>
+        </div>
+
+        {/* Статы */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+          {[
+            { label: "Всего", value: total },
+            { label: "Верно", value: correct, color: S.greenText },
+            { label: "Ошибок", value: wrongAnswers.length, color: S.redText },
+            { label: "Точность", value: `${pct}%`, color: pct >= 70 ? S.greenText : S.redText },
+          ].map(({ label, value, color }) => (
+            <div key={label} style={{ background: S.surfaceUp, borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: color || S.text }}>{value}</div>
+              <div style={{ fontSize: 10, color: S.textMuted, marginTop: 2 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {loading && <div style={{ color: S.textMuted, padding: 30, textAlign: "center" }}>⏳ Загружаем все данные...</div>}
+
+        {!loading && (
+          <>
+            {/* Фильтр по предмету */}
+            {subjects.length > 1 && (
+              <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 14, scrollbarWidth: "none" }}>
+                {["все", ...subjects].map(s => (
+                  <button key={s} onClick={() => setSubjectFilter(s)} style={{
+                    flexShrink: 0, padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                    border: `1.5px solid ${subjectFilter === s ? S.primary : S.border}`,
+                    background: subjectFilter === s ? "rgba(99,102,241,0.15)" : S.surfaceUp,
+                    color: subjectFilter === s ? S.primary : S.textMuted,
+                  }}>{s}</button>
+                ))}
+              </div>
+            )}
+
+            <div style={{ fontWeight: 700, fontSize: 12, color: S.textMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {filteredWrong.length} ошибок{subjectFilter !== "все" ? ` · ${subjectFilter}` : ""}
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {filteredWrong.map((ans, i) => {
+                const task = taskDetails[ans.task_id];
+                const shortId = ans.task_id ? ans.task_id.slice(0, 8) : "—";
+                const questionText = task ? task.question.replace(/<[^>]+>/g, " ").trim().slice(0, 120) : null;
+                return (
+                  <div key={i} style={{ background: S.surfaceUp, borderRadius: 12, padding: "10px 12px", border: `1px solid ${S.border}` }}>
+                    {/* Метаданные */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+                        <span style={{ fontFamily: "monospace", fontSize: 10, color: S.primary, background: "rgba(99,102,241,0.15)", padding: "2px 6px", borderRadius: 6 }}>#{shortId}</span>
+                        {task?.line_number && <span style={{ fontSize: 10, color: S.textMuted, background: S.border, padding: "2px 6px", borderRadius: 6 }}>Линия {task.line_number}</span>}
+                        {task?.subject && <span style={{ fontSize: 10, color: S.textDim }}>{task.subject}</span>}
+                      </div>
+                      <span style={{ fontSize: 10, color: S.textDim, flexShrink: 0 }}>{ans.created_at ? new Date(ans.created_at).toLocaleDateString("ru") : ""}</span>
+                    </div>
+
+                    {/* Тема */}
+                    {task?.topic && <div style={{ fontSize: 10, color: S.textDim, marginBottom: 5 }}>📂 {task.topic}{task.subtopic ? ` → ${task.subtopic}` : ""}</div>}
+
+                    {/* Вопрос */}
+                    {questionText && <div style={{ fontSize: 11, color: S.textMuted, marginBottom: 6, lineHeight: 1.4 }}>{questionText}{questionText.length >= 120 ? "..." : ""}</div>}
+
+                    {/* Ответы */}
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: "rgba(220,38,38,0.15)", color: S.redText }}>
+                        Ответил: <b>{ans.user_answer || "—"}</b>
+                      </span>
+                      <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, background: "rgba(22,163,74,0.15)", color: S.greenText }}>
+                        Верно: <b>{ans.correct_answer || task?.answer || "—"}</b>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {filteredWrong.length === 0 && (
+              <div style={{ textAlign: "center", color: S.greenText, padding: 20, fontSize: 14 }}>🎉 Нет ошибок!</div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SubjectsTab() {
+  const [configs, setConfigs] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(null);
 
   useEffect(() => { fetchConfigs(); }, []);
 
   async function fetchConfigs() {
     const { data } = await supabase.from("subject_config").select("*");
-    // Дефолт — все предметы открыты
     const map = {};
     SUBJECTS.forEach(s => { map[s] = true; });
     (data || []).forEach(row => { map[row.subject] = row.is_visible; });
@@ -67,34 +226,22 @@ function SubjectsTab() {
   async function toggle(subject) {
     const newVal = !configs[subject];
     setSaving(subject);
-    // Оптимистичное обновление — UI меняется сразу, не ждём сервер
     setConfigs(prev => ({ ...prev, [subject]: newVal }));
-
-    const { error } = await supabase
-      .from("subject_config")
-      .upsert(
-        { subject, is_visible: newVal, updated_at: new Date().toISOString() },
-        { onConflict: "subject" }
-      );
-
-    if (error) {
-      // Откат если сервер вернул ошибку
-      setConfigs(prev => ({ ...prev, [subject]: !newVal }));
-      alert("Ошибка: " + error.message);
-    }
+    const { error } = await supabase.from("subject_config").upsert(
+      { subject, is_visible: newVal, updated_at: new Date().toISOString() },
+      { onConflict: "subject" }
+    );
+    if (error) { setConfigs(prev => ({ ...prev, [subject]: !newVal })); alert("Ошибка: " + error.message); }
     setSaving(null);
   }
 
-  if (loading) return (
-    <div style={{ color: S.textMuted, textAlign: "center", padding: 40 }}>Загрузка...</div>
-  );
+  if (loading) return <div style={{ color: S.textMuted, textAlign: "center", padding: 40 }}>Загрузка...</div>;
 
   const visibleCount = Object.values(configs).filter(Boolean).length;
   const hiddenCount  = Object.values(configs).filter(v => !v).length;
 
   return (
     <div>
-      {/* Сводка */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
         <div style={{ background: "rgba(22,163,74,0.12)", border: "1px solid #16a34a44", borderRadius: 12, padding: "14px 16px", textAlign: "center" }}>
           <div style={{ fontSize: 28, fontWeight: 800, color: S.greenText }}>{visibleCount}</div>
@@ -105,89 +252,34 @@ function SubjectsTab() {
           <div style={{ fontSize: 12, color: S.textMuted, marginTop: 4 }}>Скрыто</div>
         </div>
       </div>
-
-      {/* Список предметов */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {SUBJECTS.map(subject => {
-          const visible   = configs[subject] !== false; // дефолт true
-          const isSaving  = saving === subject;
-          const emoji     = SUBJECT_META[subject]?.emoji || "📚";
-
+          const visible  = configs[subject] !== false;
+          const isSaving = saving === subject;
+          const emoji    = SUBJECT_META[subject]?.emoji || "📚";
           return (
-            <div key={subject} style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              background: S.surfaceUp,
-              border: `1.5px solid ${visible ? "#6366f144" : S.border}`,
-              borderRadius: 14,
-              padding: "14px 16px",
-              transition: "border-color 0.2s",
-            }}>
-              {/* Левая часть */}
+            <div key={subject} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: S.surfaceUp, border: `1.5px solid ${visible ? "#6366f144" : S.border}`, borderRadius: 14, padding: "14px 16px", transition: "border-color 0.2s" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <span style={{ fontSize: 28 }}>{emoji}</span>
                 <div>
-                  <div style={{
-                    fontSize: 14, fontWeight: 700,
-                    color: visible ? S.text : S.textMuted,
-                    textDecoration: visible ? "none" : "line-through",
-                  }}>
-                    {subject}
-                  </div>
-                  <div style={{ fontSize: 11, color: visible ? S.greenText : S.redText, marginTop: 2 }}>
-                    {visible ? "🟢 Виден пользователям" : "🔴 Скрыт от пользователей"}
-                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: visible ? S.text : S.textMuted, textDecoration: visible ? "none" : "line-through" }}>{subject}</div>
+                  <div style={{ fontSize: 11, color: visible ? S.greenText : S.redText, marginTop: 2 }}>{visible ? "🟢 Виден пользователям" : "🔴 Скрыт от пользователей"}</div>
                 </div>
               </div>
-
-              {/* Тогл */}
-              <button
-                onClick={() => toggle(subject)}
-                disabled={isSaving}
-                title={visible ? "Скрыть предмет" : "Открыть предмет"}
-                style={{
-                  width: 54, height: 30,
-                  borderRadius: 999,
-                  border: "none",
-                  cursor: isSaving ? "wait" : "pointer",
-                  background: visible
-                    ? "linear-gradient(135deg, #6366f1, #818cf8)"
-                    : S.border,
-                  position: "relative",
-                  transition: "background 0.25s",
-                  flexShrink: 0,
-                  boxShadow: visible ? "0 2px 8px rgba(99,102,241,0.5)" : "none",
-                  opacity: isSaving ? 0.6 : 1,
-                }}
-              >
-                {/* Белый кружок — едет влево/вправо */}
-                <div style={{
-                  width: 22, height: 22,
-                  borderRadius: "50%",
-                  background: "#fff",
-                  position: "absolute",
-                  top: 4,
-                  left: visible ? 28 : 4,
-                  transition: "left 0.25s cubic-bezier(0.34,1.56,0.64,1)",
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-                }} />
+              <button onClick={() => toggle(subject)} disabled={isSaving} style={{ width: 54, height: 30, borderRadius: 999, border: "none", cursor: isSaving ? "wait" : "pointer", background: visible ? "linear-gradient(135deg, #6366f1, #818cf8)" : S.border, position: "relative", transition: "background 0.25s", flexShrink: 0, boxShadow: visible ? "0 2px 8px rgba(99,102,241,0.5)" : "none", opacity: isSaving ? 0.6 : 1 }}>
+                <div style={{ width: 22, height: 22, borderRadius: "50%", background: "#fff", position: "absolute", top: 4, left: visible ? 28 : 4, transition: "left 0.25s cubic-bezier(0.34,1.56,0.64,1)", boxShadow: "0 1px 4px rgba(0,0,0,0.3)" }} />
               </button>
             </div>
           );
         })}
       </div>
-
       <div style={{ marginTop: 16, fontSize: 12, color: S.textDim, textAlign: "center", lineHeight: 1.6 }}>
-        Изменения применяются мгновенно.<br />
-        Скрытые предметы не отображаются у пользователей.<br />
-        Ты как админ видишь все предметы всегда.
+        Изменения применяются мгновенно.<br />Скрытые предметы не отображаются у пользователей.
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────
-// Остальные вкладки без изменений
-// ─────────────────────────────────────────
 function SearchTab() {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState(null);
@@ -213,23 +305,13 @@ function SearchTab() {
     if (!data || data.length === 0) { setNotFound(true); return; }
     const task = data[0];
     setResult(task);
-    setForm({
-      question: task.question || "", answer: task.answer || "",
-      solution: task.solution || "", topic: task.topic || "",
-      subtopic: task.subtopic || "", options: task.options || "",
-      subject: task.subject || "Биология", difficulty: String(task.difficulty || "2"),
-    });
+    setForm({ question: task.question || "", answer: task.answer || "", solution: task.solution || "", topic: task.topic || "", subtopic: task.subtopic || "", options: task.options || "", subject: task.subject || "Биология", difficulty: String(task.difficulty || "2") });
   }
 
   async function handleSave() {
     if (!result) return;
     setSaving(true); setError(""); setSaved(false);
-    const { error: err } = await supabase.from("ege_tasks").update({
-      question: form.question.trim(), answer: form.answer.trim(),
-      solution: form.solution.trim() || null, topic: form.topic.trim() || null,
-      subtopic: form.subtopic.trim() || null, options: form.options.trim() || null,
-      subject: form.subject || null, difficulty: form.difficulty ? parseInt(form.difficulty) : null,
-    }).eq("id", result.id);
+    const { error: err } = await supabase.from("ege_tasks").update({ question: form.question.trim(), answer: form.answer.trim(), solution: form.solution.trim() || null, topic: form.topic.trim() || null, subtopic: form.subtopic.trim() || null, options: form.options.trim() || null, subject: form.subject || null, difficulty: form.difficulty ? parseInt(form.difficulty) : null }).eq("id", result.id);
     setSaving(false);
     if (err) { setError(err.message); return; }
     setSaved(true); setTimeout(() => setSaved(false), 3000);
@@ -285,6 +367,7 @@ function StatsTab() {
   const [answers, setAnswers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("users");
+  const [selectedUser, setSelectedUser] = useState(null);
 
   useEffect(() => { fetchStats(); }, []);
 
@@ -306,14 +389,10 @@ function StatsTab() {
       ua.forEach(a => { const k = a.topic || "Без темы"; if (!topicMap[k]) topicMap[k] = { correct: 0, total: 0 }; topicMap[k].total++; if (a.is_correct) topicMap[k].correct++; });
       const top3 = Object.entries(topicMap).map(([k, v]) => ({ k, errors: v.total - v.correct })).sort((a, b) => b.errors - a.errors).slice(0, 3).map(({ k, errors }) => `${k}(${errors} ош.)`).join("; ");
       const accuracy = Object.entries(topicMap).map(([k, v]) => `${k}: ${Math.round((v.correct / v.total) * 100)}%`).join("; ");
-      const lineMap = {};
-      ua.filter(a => !a.is_correct && a.line_number).forEach(a => { lineMap[`Линия ${a.line_number}`] = (lineMap[`Линия ${a.line_number}`] || 0) + 1; });
-      const weakLines = Object.entries(lineMap).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k}(${v})`).join("; ");
-      const wrongTasks = ua.filter(a => !a.is_correct).slice(0, 5).map(a => `ID:${a.task_id} дал:${a.user_answer || "—"} верно:${a.correct_answer || "—"}`).join("; ");
       const name = [u.first_name, u.last_name].filter(Boolean).join(" ") || "Без имени";
-      return [u.id, name, u.username || "", u.total_tasks || 0, total, correct, `${pct}%`, u.streak || 0, top3, accuracy, weakLines, wrongTasks];
+      return [u.id, name, u.username || "", u.total_tasks || 0, total, correct, `${pct}%`, u.streak || 0, top3, accuracy];
     });
-    const headers = ["ID","Имя","Username","Всего решено","С проверкой","Правильно","Точность","Стрик","Топ-3 слабые темы","Точность по темам","Слабые линии ЕГЭ","Последние ошибки"];
+    const headers = ["ID","Имя","Username","Всего решено","С проверкой","Правильно","Точность","Стрик","Топ-3 слабые темы","Точность по темам"];
     const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
     const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob); const a = document.createElement("a");
@@ -328,6 +407,8 @@ function StatsTab() {
 
   return (
     <div>
+      {selectedUser && <UserDetails user={selectedUser} onClose={() => setSelectedUser(null)} />}
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
         {[{ label: "Пользователей", value: users.length }, { label: "Ответов", value: totalAnswers }, { label: "Точность", value: `${globalPct}%` }].map(({ label, value }) => (
           <div key={label} style={{ background: S.surfaceUp, borderRadius: 12, padding: "14px 12px", textAlign: "center", border: `1px solid ${S.border}` }}>
@@ -336,12 +417,15 @@ function StatsTab() {
           </div>
         ))}
       </div>
+
       <button onClick={exportCSV} style={{ width: "100%", background: S.green, color: "#fff", padding: "11px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none", marginBottom: 16 }}>📥 Скачать CSV со статистикой</button>
+
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {[["users", "Пользователи"], ["errors", "Ошибки по темам"]].map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "8px 0", borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: "pointer", border: `2px solid ${tab === t ? S.primary : S.border}`, background: tab === t ? "rgba(99,102,241,0.15)" : S.surfaceUp, color: tab === t ? S.primary : S.textMuted }}>{label}</button>
         ))}
       </div>
+
       {tab === "users" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {users.map(u => {
@@ -368,17 +452,21 @@ function StatsTab() {
                 </div>
                 <div style={{ fontSize: 11, color: S.textMuted, marginBottom: top3.length ? 6 : 0 }}>Решено: {u.total_tasks || 0} · Стрик: {u.streak || 0}🔥</div>
                 {top3.length > 0 && (
-                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
                     {top3.map(([topic, count]) => (
                       <span key={topic} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 999, background: "rgba(220,38,38,0.15)", color: S.redText }}>{topic} · {count} ош.</span>
                     ))}
                   </div>
                 )}
+                <button onClick={() => setSelectedUser(u)} style={{ width: "100%", background: "rgba(99,102,241,0.12)", border: `1px solid rgba(99,102,241,0.3)`, color: S.primary, padding: "7px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  🔍 Все ошибки пользователя
+                </button>
               </div>
             );
           })}
         </div>
       )}
+
       {tab === "errors" && (() => {
         const errorsByTopic = {};
         answers.filter(a => !a.is_correct).forEach(a => { const k = a.topic || "Без темы"; errorsByTopic[k] = (errorsByTopic[k] || 0) + 1; });
@@ -397,9 +485,6 @@ function StatsTab() {
   );
 }
 
-// ─────────────────────────────────────────
-// Главный компонент
-// ─────────────────────────────────────────
 export default function AdminPanel() {
   const navigate = useNavigate();
   const { dbUser } = useUser();
@@ -426,7 +511,6 @@ export default function AdminPanel() {
     setTimeout(() => setSaved(false), 3000);
   }
 
-  // Вкладки — добавлена новая "subjects"
   const TABS = [
     ["search",   "🔍 Поиск"],
     ["add",      "➕ Добавить"],
@@ -437,8 +521,6 @@ export default function AdminPanel() {
   return (
     <div style={{ minHeight: "100vh", background: S.bg, color: S.text, padding: "24px 16px 80px" }}>
       <div style={{ maxWidth: 700, margin: "0 auto" }}>
-
-        {/* Шапка */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={() => navigate(-1)} style={{ background: S.surfaceUp, border: "none", color: S.textMuted, width: 34, height: 34, borderRadius: 9, fontSize: 17, cursor: "pointer" }}>←</button>
           <div>
@@ -447,16 +529,9 @@ export default function AdminPanel() {
           </div>
         </div>
 
-        {/* Вкладки — теперь в 2 строки на мобиле */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
           {TABS.map(([t, label]) => (
-            <button key={t} onClick={() => setActiveTab(t)} style={{
-              padding: "10px 0", borderRadius: 10, fontSize: 12, fontWeight: 700,
-              cursor: "pointer",
-              border: `2px solid ${activeTab === t ? S.primary : S.border}`,
-              background: activeTab === t ? "rgba(99,102,241,0.15)" : S.surfaceUp,
-              color: activeTab === t ? S.primary : S.textMuted,
-            }}>
+            <button key={t} onClick={() => setActiveTab(t)} style={{ padding: "10px 0", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer", border: `2px solid ${activeTab === t ? S.primary : S.border}`, background: activeTab === t ? "rgba(99,102,241,0.15)" : S.surfaceUp, color: activeTab === t ? S.primary : S.textMuted }}>
               {label}
             </button>
           ))}
