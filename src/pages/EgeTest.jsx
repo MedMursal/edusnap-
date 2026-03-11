@@ -420,17 +420,24 @@ export default function EgeTest({ t }) {
   }
 
   function getMatchRows(task) {
+    const answerLen = (task.answer || "").replace(/\s/g, "").length;
     const text = task.question.replace(/<[^>]+>/g, " ");
     const free = text.match(/[А-Е]\)\s*[^\n]{3,}/g) || [];
-    if (free.length >= 2) return free.map(m => ({ label: m[0], text: m.replace(/^[А-Е]\)\s*/, "").trim().slice(0, 120) }));
+    if (free.length >= 2) {
+      const result = free.map(m => ({ label: m[0], text: m.replace(/^[А-Е]\)\s*/, "").trim().slice(0, 120) }));
+      return answerLen > 0 ? result.slice(0, answerLen) : result;
+    }
     const rows = []; const trRe = /<tr[^>]*>(.*?)<\/tr>/gis; let trM;
     while ((trM = trRe.exec(task.question)) !== null) {
       const rowHtml = trM[1]; if (/<th/i.test(rowHtml)) continue;
       const tdRe2 = /<td[^>]*>(.*?)<\/td>/gis; const cells = []; let tdM2;
       while ((tdM2 = tdRe2.exec(rowHtml)) !== null) cells.push(tdM2[1].replace(/<[^>]+>/g, "").trim());
-      if (cells[0] && cells[0].length > 1) rows.push(cells[0]);
+      if (!cells[0] || cells[0].length <= 1) continue;
+      const hasEmpty = cells.some(c => c === "" || /^[А-Е]$/.test(c));
+      if (hasEmpty) rows.push(cells[0]);
     }
-    if (rows.length >= 2) return rows.map((tx, i) => ({ label: String.fromCharCode(1040+i), text: tx.replace(/^[А-Е]\)\s*/, "").trim().slice(0, 120) }));
+    const limited = answerLen > 0 ? rows.slice(0, answerLen) : rows;
+    if (limited.length >= 2) return limited.map((tx, i) => ({ label: String.fromCharCode(1040 + i), text: tx.replace(/^[А-Е]\)\s*/, "").trim().slice(0, 120) }));
     return null;
   }
 
