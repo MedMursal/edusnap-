@@ -8,16 +8,26 @@ import SettingsModal from "../components/ui/SettingsModal"
 import { useUser } from "../App"
 
 const LEVELS = [
-  { level: 1,  xp: 0,    label: "Новичок",  emoji: "🌱" },
-  { level: 2,  xp: 50,   label: "Ученик",   emoji: "📖" },
-  { level: 3,  xp: 120,  label: "Знаток",   emoji: "🔍" },
-  { level: 4,  xp: 250,  label: "Практик",  emoji: "⚗️"  },
-  { level: 5,  xp: 450,  label: "Эксперт",  emoji: "🧠" },
-  { level: 6,  xp: 700,  label: "Мастер",   emoji: "🎯" },
-  { level: 7,  xp: 1000, label: "Профи",    emoji: "🚀" },
-  { level: 8,  xp: 1400, label: "Гений",    emoji: "💡" },
-  { level: 9,  xp: 1900, label: "Легенда",  emoji: "⭐" },
-  { level: 10, xp: 2500, label: "ЕГЭ 100",  emoji: "🏆" },
+  { level: 1,  xp: 0,      label: "Новичок",      emoji: "🌱" },
+  { level: 2,  xp: 100,    label: "Ученик",        emoji: "📖" },
+  { level: 3,  xp: 250,    label: "Знаток",        emoji: "🔍" },
+  { level: 4,  xp: 500,    label: "Практик",       emoji: "⚗️"  },
+  { level: 5,  xp: 900,    label: "Эксперт",       emoji: "🧠" },
+  { level: 6,  xp: 1500,   label: "Мастер",        emoji: "🎯" },
+  { level: 7,  xp: 2500,   label: "Профи",         emoji: "🚀" },
+  { level: 8,  xp: 4000,   label: "Гений",         emoji: "💡" },
+  { level: 9,  xp: 6000,   label: "Легенда",       emoji: "⭐" },
+  { level: 10, xp: 9000,   label: "Исследователь", emoji: "🔬" },
+  { level: 11, xp: 13000,  label: "Академик",      emoji: "🏛️" },
+  { level: 12, xp: 18000,  label: "Учёный",        emoji: "🧬" },
+  { level: 13, xp: 25000,  label: "Доцент",        emoji: "📐" },
+  { level: 14, xp: 33000,  label: "Профессор",     emoji: "👨‍🏫" },
+  { level: 15, xp: 43000,  label: "Доктор наук",   emoji: "🎓" },
+  { level: 16, xp: 55000,  label: "Нобелевский",   emoji: "🏅" },
+  { level: 17, xp: 68000,  label: "Эйнштейн",      emoji: "⚛️" },
+  { level: 18, xp: 82000,  label: "Ломоносов",     emoji: "🦅" },
+  { level: 19, xp: 93000,  label: "Олимпиец",      emoji: "🥇" },
+  { level: 20, xp: 100000, label: "ЕГЭ 100",       emoji: "🏆" },
 ]
 
 function getLevelInfo(xp) {
