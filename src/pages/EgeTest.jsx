@@ -309,7 +309,7 @@ function XpFloat({ xp, onDone }) {
 export default function EgeTest({ t }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { tgUser, dbUser } = useUser();
+  const { tgUser, dbUser, incrementTasksToday } = useUser();
   const isAdmin = (tgUser?.id || dbUser?.id) === 5015547885;
   const subjectParam = searchParams.get("subject");
   const topicParam = searchParams.get("topic");
@@ -450,6 +450,7 @@ export default function EgeTest({ t }) {
     else if (lastDate !== today) newStreak = 1;
     await supabase.from("users").update({ xp: (fresh.xp||0)+xp, total_tasks: (fresh.total_tasks||0)+1, tasks_today: lastDate!==today?1:(fresh.tasks_today||0)+1, tasks_today_date: new Date().toISOString(), streak: newStreak, last_active: new Date().toISOString() }).eq("id", userId);
     setLastXp(xp); setXpEarned(prev => prev + xp);
+    incrementTasksToday(); // ← ДОБАВЬ ЭТУ СТРОКУ
   }
 
   function getOptions(task) {
