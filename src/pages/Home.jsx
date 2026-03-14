@@ -30,6 +30,9 @@ const LEVELS = [
   { level: 20, xp: 100000, label: "ЕГЭ 100",       emoji: "🏆" },
 ]
 
+const MISSION_TARGET = 10
+const MISSION_XP_BONUS = 50
+
 function getLevelInfo(xp) {
   let current = LEVELS[0], next = LEVELS[1]
   for (let i = 0; i < LEVELS.length; i++) {
@@ -53,7 +56,7 @@ function StreakFire({ streak, t }) {
   return (
     <motion.div
       initial={{ scale: 0.8, opacity: 0 }}
-      animate={{ scale: 1,   opacity: 1 }}
+      animate={{ scale: 1, opacity: 1 }}
       transition={{ delay: 0.5, type: "spring", stiffness: 300 }}
       style={{
         display: "flex", alignItems: "center", gap: 6,
@@ -79,7 +82,7 @@ function XPBar({ xp, t }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1,  y: 0  }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2, duration: 0.4 }}
       style={{ background: t.surface, borderRadius: 24, padding: "16px 18px", border: `1.5px solid ${t.border}`, marginBottom: 12 }}
     >
@@ -108,6 +111,89 @@ function XPBar({ xp, t }) {
             <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>{progress}%</span>
             <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>{toNext} XP до «{nextLevel.label}»</span>
           </div>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
+function MissionCard({ t, tasksToday, missionDone, onClaim }) {
+  const progress = Math.min(tasksToday, MISSION_TARGET)
+  const percent = Math.round((progress / MISSION_TARGET) * 100)
+  const completed = tasksToday >= MISSION_TARGET
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.28, duration: 0.4 }}
+      style={{
+        background: t.surface,
+        borderRadius: 24,
+        padding: "16px 18px",
+        border: `1.5px solid ${completed ? t.success + "66" : t.border}`,
+        marginBottom: 12,
+        position: "relative",
+        overflow: "hidden",
+        boxShadow: completed ? `0 4px 20px ${t.success}22` : "none",
+      }}
+    >
+      {/* фоновый градиент при выполнении */}
+      {completed && (
+        <div style={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 80% 50%, ${t.success}11, transparent 70%)`, pointerEvents: "none" }} />
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 12, background: completed ? `${t.success}22` : `${t.accent}22`, border: `1.5px solid ${completed ? t.success + "44" : t.accent + "44"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>
+            {missionDone ? "✅" : completed ? "🎁" : "🎯"}
+          </div>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 13, color: t.text }}>Миссия дня</div>
+            <div style={{ fontWeight: 600, fontSize: 11, color: t.textMuted }}>
+              {missionDone ? "Выполнено! Приходи завтра" : `Реши ${MISSION_TARGET} заданий`}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, background: `${t.primary}18`, borderRadius: 999, padding: "4px 10px" }}>
+          <Zap size={12} color={t.primary} fill={t.primary} />
+          <span style={{ fontWeight: 900, fontSize: 12, color: t.primary }}>+{MISSION_XP_BONUS} XP</span>
+        </div>
+      </div>
+
+      {/* прогресс бар */}
+      <div style={{ height: 8, background: t.surfaceUp, borderRadius: 999, overflow: "hidden", border: `1.5px solid ${t.border}`, marginBottom: 6 }}>
+        <motion.div
+          key={progress}
+          initial={{ width: 0 }}
+          animate={{ width: `${percent}%` }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          style={{ height: "100%", borderRadius: 999, background: completed ? t.success : `linear-gradient(90deg, ${t.primary}, ${t.primaryBright})` }}
+        />
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: t.textMuted }}>
+          {progress} / {MISSION_TARGET} заданий
+        </span>
+
+        {/* кнопка забрать награду */}
+        {completed && !missionDone && (
+          <motion.button
+            className="duo-btn"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 400 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onClaim}
+            style={{ background: t.success, border: "none", borderRadius: 999, padding: "5px 14px", fontSize: 12, fontWeight: 900, color: "#fff", cursor: "pointer", boxShadow: `0 3px 12px ${t.success}44` }}
+          >
+            🎁 Забрать +{MISSION_XP_BONUS} XP
+          </motion.button>
+        )}
+
+        {missionDone && (
+          <span style={{ fontSize: 11, fontWeight: 700, color: t.success }}>+{MISSION_XP_BONUS} XP получено ✓</span>
         )}
       </div>
     </motion.div>
@@ -147,19 +233,32 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
   const [showSettings, setShowSettings] = useState(false)
   const [userData, setUserData] = useState(null)
   const [quote] = useState(() => QUOTES[Math.floor(Math.random() * QUOTES.length)])
+  const [missionClaimed, setMissionClaimed] = useState(false)
   const navigate = useNavigate()
   const { tgUser, dbUser } = useUser()
 
   useEffect(() => {
     const userId = tgUser?.id || dbUser?.id
     if (!userId) return
-    supabase.from("users").select("xp, streak, total_tasks, first_name").eq("id", userId).single()
+    supabase.from("users").select("xp, streak, total_tasks, first_name, tasks_today, tasks_today_date, mission_done_date").eq("id", userId).single()
       .then(({ data }) => { if (data) setUserData(data) })
   }, [tgUser?.id, dbUser?.id])
 
+  const today = new Date().toISOString().split("T")[0]
   const xp        = userData?.xp        ?? dbUser?.xp        ?? 0
   const streak    = userData?.streak    ?? dbUser?.streak    ?? 0
   const firstName = userData?.first_name || tgUser?.first_name || dbUser?.first_name || ""
+  const tasksToday = userData?.tasks_today_date === today ? userData?.tasks_today ?? 0 : 0
+  const missionDone = missionClaimed || userData?.mission_done_date === today
+
+  async function handleClaimMission() {
+    const userId = tgUser?.id || dbUser?.id
+    if (!userId) return
+    setMissionClaimed(true)
+    const newXp = xp + MISSION_XP_BONUS
+    await supabase.from("users").update({ mission_done_date: today, xp: newXp }).eq("id", userId)
+    setUserData(prev => ({ ...prev, xp: newXp, mission_done_date: today }))
+  }
 
   const greeting = (() => {
     const h = new Date().getHours()
@@ -197,6 +296,14 @@ export default function Home({ t, theme, setTheme, mode, setMode }) {
 
       <div style={{ padding: "0 16px" }}>
         <XPBar xp={xp} t={t} />
+
+        {/* МИССИЯ ДНЯ */}
+        <MissionCard
+          t={t}
+          tasksToday={tasksToday}
+          missionDone={missionDone}
+          onClaim={handleClaimMission}
+        />
 
         <motion.button
           className="duo-btn"
