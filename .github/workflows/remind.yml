@@ -1,0 +1,14 @@
+name: Daily Reminder
+on:
+  schedule:
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call remind API
+        run: |
+          curl -X GET https://edusnap-sigma.vercel.app/api/remind \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
