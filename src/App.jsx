@@ -131,7 +131,7 @@ function TelegramBanner({ t, onDismiss }) {
         </div>
       </div>
       <a
-        href="https://t.me/ege_bio_sprint_bot"
+        href="https://t.me/EgeUpBot"
         target="_blank"
         rel="noopener noreferrer"
         style={{

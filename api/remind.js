@@ -44,7 +44,7 @@ export default async function handler(req, res) {
 
     await sendMessage(
       user.id,
-      `👋 <b>${user.first_name || "Привет"}</b>, не забудь порешать задачи ЕГЭ сегодня!${streakWarning}\n\n📚 Открыть тренажёр → @ege_bio_sprint_bot`
+      `👋 <b>${user.first_name || "Привет"}</b>, не забудь порешать задачи ЕГЭ сегодня!${streakWarning}\n\n📚 Открыть тренажёр → @EgeUpBot`
     )
     sent++
 

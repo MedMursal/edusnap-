@@ -171,7 +171,7 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
         {/* Баннер привязки Telegram — показывается только в браузере */}
         {!isInTelegram && (
           <motion.a
-            href="https://t.me/ege_bio_sprint_bot"
+            href="https://t.me/EgeUpBot"
             target="_blank"
             rel="noopener noreferrer"
             initial={{ opacity: 0, y: 12 }}
