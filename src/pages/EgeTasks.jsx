@@ -268,7 +268,7 @@ export default function EgeTasks({ t }) {
       <div style={{ padding: "28px 20px 20px" }}>
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Задания ЕГЭ</h1>
         <p style={{ margin: "5px 0 0", color: t.textMuted, fontSize: 14 }}>
-          {totalCount} заданий в базе
+        {isAdmin ? `${totalCount} заданий в базе` : "10 000+ заданий"}
           {isAdmin && (
             <span style={{ marginLeft: 8, fontSize: 11, color: t.primary, fontWeight: 700 }}>
               👑 Режим админа — видишь все предметы
@@ -315,11 +315,13 @@ export default function EgeTasks({ t }) {
                       )}
                       <span style={{ fontSize: 52, lineHeight: 1 }}>{info.emoji}</span>
                       <span style={{ fontSize: 14, fontWeight: 800, color: info.color, textAlign: "center" }}>{s}</span>
+                      {isAdmin && (
                       <span style={{
                         fontSize: 11, color: info.color, opacity: 0.7,
                         background: `${info.color}18`, borderRadius: 99,
                         padding: "2px 10px", fontWeight: 600,
                       }}>{count} зад.</span>
+                    )}
                     </button>
                   );
                 })}
