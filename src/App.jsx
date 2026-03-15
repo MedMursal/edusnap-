@@ -39,11 +39,9 @@ export function buildTheme(themeKey, mode) {
   return { ...BASE_THEMES[themeKey], ...(mode === "light" ? LIGHT_PALETTE[themeKey] : DARK_PALETTE[themeKey]) }
 }
 
-// Инжектим CSS-переменные в :root — тема меняется мгновенно без перерендера
 function injectCSSVars(t) {
   const root = document.documentElement
   Object.entries(t).forEach(([key, val]) => {
-    // camelCase → --kebab-case
     const cssVar = "--" + key.replace(/([A-Z])/g, "-$1").toLowerCase()
     root.style.setProperty(cssVar, val)
   })
@@ -54,13 +52,10 @@ export function useUser() { return useContext(UserContext) }
 
 const FREE_DAILY_LIMIT = 10
 
-// Глобальные стили — один раз
 const GLOBAL_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
-  
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { font-family: 'Nunito', -apple-system, sans-serif; margin: 0; }
-  
   @keyframes duo-bounce {
     0%   { transform: scale(1); }
     40%  { transform: scale(0.94); }
@@ -105,17 +100,10 @@ const GLOBAL_STYLES = `
     0%   { background: var(--success); }
     100% { background: var(--surface); }
   }
-
-  .duo-btn {
-    cursor: pointer;
-    transition: transform 0.1s, box-shadow 0.1s;
-    user-select: none;
-  }
+  .duo-btn { cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; user-select: none; }
   .duo-btn:active { animation: duo-bounce 0.3s ease; }
-
   .slide-up { animation: slide-up 0.4s cubic-bezier(0.22,1,0.36,1) both; }
   .fade-in  { animation: fade-in  0.3s ease both; }
-
   .xp-shimmer {
     background: linear-gradient(90deg, var(--primary) 0%, var(--primary-bright) 40%, #fff8 50%, var(--primary-bright) 60%, var(--primary) 100%);
     background-size: 200% auto;
@@ -123,23 +111,79 @@ const GLOBAL_STYLES = `
   }
 `
 
+// Баннер для пользователей которые зашли из браузера а не из Telegram
+function TelegramBanner({ t, onDismiss }) {
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
+      background: "linear-gradient(135deg, #229ED9, #1a7fb5)",
+      padding: "12px 16px",
+      display: "flex", alignItems: "center", gap: 12,
+      boxShadow: "0 2px 16px rgba(34,158,217,0.4)",
+    }}>
+      <span style={{ fontSize: 24, flexShrink: 0 }}>📊</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", marginBottom: 2 }}>
+          Привяжи Telegram для отслеживания прогресса
+        </div>
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.8)" }}>
+          XP, стрики и статистика сохранятся навсегда
+        </div>
+      </div>
+      <a
+        href="https://t.me/ege_bio_sprint_bot"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          background: "#fff", color: "#229ED9",
+          borderRadius: 999, padding: "7px 14px",
+          fontSize: 12, fontWeight: 800,
+          textDecoration: "none", flexShrink: 0,
+          whiteSpace: "nowrap",
+        }}
+      >
+        Открыть
+      </a>
+      <button
+        onClick={onDismiss}
+        style={{
+          background: "none", border: "none",
+          color: "rgba(255,255,255,0.7)", fontSize: 18,
+          cursor: "pointer", padding: "0 4px", flexShrink: 0,
+        }}
+      >
+        ✕
+      </button>
+    </div>
+  )
+}
+
 export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem("duo-theme") || "coral")
   const [mode, setMode]   = useState(() => localStorage.getItem("duo-mode")  || "dark")
   const [tgUser, setTgUser] = useState(null)
   const [dbUser, setDbUser] = useState(null)
   const [userLoading, setUserLoading] = useState(true)
+  const [showBanner, setShowBanner] = useState(false)
 
   const t = buildTheme(theme, mode)
 
-  // CSS-переменные обновляются мгновенно при смене темы
   useEffect(() => { injectCSSVars(t) }, [theme, mode])
-
-  // Сохраняем выбор темы
   useEffect(() => { localStorage.setItem("duo-theme", theme) }, [theme])
   useEffect(() => { localStorage.setItem("duo-mode",  mode)  }, [mode])
-
   useEffect(() => { initUser() }, [])
+
+  // Показываем баннер если зашли не из Telegram и не скрыли его раньше
+  useEffect(() => {
+    if (!isInTelegram() && !localStorage.getItem("tg-banner-dismissed")) {
+      setShowBanner(true)
+    }
+  }, [])
+
+  function dismissBanner() {
+    setShowBanner(false)
+    localStorage.setItem("tg-banner-dismissed", "1")
+  }
 
   async function initUser() {
     const tg = getTelegramWebApp()
@@ -194,7 +238,11 @@ export default function App() {
     <UserContext.Provider value={userCtx}>
       <style>{GLOBAL_STYLES}</style>
       <BrowserRouter>
-        <div style={{ background: t.bg, minHeight: "100vh", color: t.text }}>
+        {showBanner && <TelegramBanner t={t} onDismiss={dismissBanner} />}
+        <div style={{
+          background: t.bg, minHeight: "100vh", color: t.text,
+          paddingTop: showBanner ? 64 : 0,
+        }}>
           <Routes>
             <Route path="/"        element={<Home     t={t} theme={theme} setTheme={setTheme} mode={mode} setMode={setMode} />} />
             <Route path="/profile" element={<Profile  t={t} theme={theme} setTheme={setTheme} mode={mode} setMode={setMode} />} />
