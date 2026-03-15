@@ -40,7 +40,6 @@ function getLevelInfo(xp) {
   return { ...current, progress, toNext: next ? next.xp - xp : 0, nextLevel: next }
 }
 
-// Тема-пикер: сетка из 5 кружков
 const THEMES = [
   { key: "coral",    emoji: "🪸", name: "Коралл",  color: "#FF6B4A" },
   { key: "sage",     emoji: "🌿", name: "Шалфей",  color: "#4DAA7A" },
@@ -57,8 +56,6 @@ function ThemePicker({ theme, setTheme, mode, setMode, t }) {
       marginBottom: 12,
     }}>
       <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 14 }}>🎨 Оформление</div>
-
-      {/* Цвет */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
           Цвет
@@ -92,8 +89,6 @@ function ThemePicker({ theme, setTheme, mode, setMode, t }) {
           ))}
         </div>
       </div>
-
-      {/* Режим */}
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
           Режим
@@ -162,7 +157,6 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
   return (
     <div style={{ minHeight: "100vh", background: t.bg, paddingBottom: 110 }}>
 
-      {/* Заголовок */}
       <div style={{
         background: t.surface,
         borderBottom: `1.5px solid ${t.border}`,
@@ -173,6 +167,43 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
       </div>
 
       <div style={{ padding: "0 16px" }}>
+
+        {/* Баннер привязки Telegram — показывается только в браузере */}
+        {!isInTelegram && (
+          <motion.a
+            href="https://t.me/ege_bio_sprint_bot"
+            target="_blank"
+            rel="noopener noreferrer"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{
+              display: "flex", alignItems: "center", gap: 12,
+              background: "linear-gradient(135deg, #229ED922, #1a7fb522)",
+              border: "1.5px solid #229ED944",
+              borderRadius: 20, padding: "14px 16px",
+              marginBottom: 12, textDecoration: "none",
+              cursor: "pointer",
+            }}
+          >
+            <div style={{
+              width: 42, height: 42, borderRadius: 14,
+              background: "#229ED922", border: "1.5px solid #229ED944",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 20, flexShrink: 0,
+            }}>
+              📊
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#229ED9", marginBottom: 2 }}>
+                Привязать Telegram
+              </div>
+              <div style={{ fontSize: 12, color: t.textMuted }}>
+                Для отслеживания прогресса, стриков и XP
+              </div>
+            </div>
+            <ChevronRight size={18} color="#229ED9" />
+          </motion.a>
+        )}
 
         {/* Аватар */}
         <motion.div
@@ -186,7 +217,6 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
             display: "flex", alignItems: "center", gap: 16,
           }}
         >
-          {/* Аватар с уровнем */}
           <div style={{ position: "relative", flexShrink: 0 }}>
             <div style={{
               width: 68, height: 68, borderRadius: 22,
@@ -200,7 +230,6 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
                 ? <img src={tgUser.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 : displayName[0]?.toUpperCase() || "?"}
             </div>
-            {/* Бейдж уровня */}
             <div style={{
               position: "absolute", bottom: -6, right: -6,
               background: t.primary, color: "#fff",
@@ -221,8 +250,6 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
             {tgUser?.username && (
               <p style={{ fontSize: 12, color: t.textMuted, margin: "0 0 8px" }}>@{tgUser.username}</p>
             )}
-
-            {/* Мини прогресс-бар уровня */}
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontSize: 11, color: t.primary, fontWeight: 700 }}>{levelEmoji} {label}</span>
               <div style={{ flex: 1, height: 5, background: t.surfaceUp, borderRadius: 999, overflow: "hidden" }}>
