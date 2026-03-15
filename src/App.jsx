@@ -175,14 +175,13 @@ export default function App() {
 
   // Показываем баннер если зашли не из Telegram и не скрыли его раньше
   useEffect(() => {
-    if (!isInTelegram() && !localStorage.getItem("tg-banner-dismissed")) {
+    if (!isInTelegram()) {
       setShowBanner(true)
     }
   }, [])
 
   function dismissBanner() {
     setShowBanner(false)
-    localStorage.setItem("tg-banner-dismissed", "1")
   }
 
   async function initUser() {
