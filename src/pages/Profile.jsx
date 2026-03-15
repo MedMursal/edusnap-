@@ -358,6 +358,43 @@ export default function Profile({ t, theme, setTheme, mode, setMode }) {
         ))}
 
       </div>
+      {/* Поддержка */}
+<motion.a
+  href="https://t.me/repproducerr"
+  target="_blank"
+  rel="noopener noreferrer"
+  initial={{ opacity: 0, y: 16 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: 0.3 }}
+  style={{
+    width: "100%", padding: "15px 18px",
+    borderRadius: 20, marginBottom: 10,
+    background: t.surface,
+    border: `1.5px solid ${t.border}`,
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    textDecoration: "none",
+  }}
+>
+  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+    <div style={{
+      width: 42, height: 42, borderRadius: 14,
+      background: "#229ED922", border: "1.5px solid #229ED944",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: 20,
+    }}>
+      💬
+    </div>
+    <div>
+      <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 2 }}>
+        Вопросы и предложения
+      </div>
+      <div style={{ fontSize: 12, color: t.textMuted }}>
+        Написать в поддержку
+      </div>
+    </div>
+  </div>
+  <ChevronRight size={18} color={t.textMuted} />
+</motion.a>
     </div>
   )
 }
